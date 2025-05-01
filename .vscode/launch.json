@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:pana}",
+            "name": "Debug pana",
+            "program": "${workspaceFolder:pana}/.build/debug/pana",
+            "preLaunchTask": "swift: Build Debug pana"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:pana}",
+            "name": "Release pana",
+            "program": "${workspaceFolder:pana}/.build/release/pana",
+            "preLaunchTask": "swift: Build Release pana"
+        }
+    ]
+}
