@@ -65,26 +65,8 @@ private func keyHandler(
 
     let bits = String(event.flags.rawValue, radix: 2)
     let bitsPadded = String(repeating: "0", count: 32 - bits.count) + bits
-    print("hotkey cmd+\(key)", terminator: " ")
+    print("\u{1b}[0;36mhotkey cmd+\(key)\u{1b}[0m", terminator: " ")
     print("\u{1b}[0;35m\(bitsPadded)\u{1b}[0m")
-
-    // let windows =
-    //     CGWindowListCopyWindowInfo(
-    //         [.optionOnScreenOnly, .excludeDesktopElements],
-    //         kCGNullWindowID
-    //     )
-    //     as! [[String: AnyObject]]
-
-    // for window in windows {
-    //     // print(window.keys.count)
-    //     if window[kCGWindowIsOnscreen as String] as! Int == 0 { continue }
-    //     if window[kCGWindowStoreType as String] as! Int == 0 { continue }
-    //     print()
-    //     for kv in window {
-    //         print(kv)
-    //     }
-    //     // print(window)
-    // }
 
     return nil
 }

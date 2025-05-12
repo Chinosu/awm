@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "pana",
+    platforms: [.macOS(.v15)],
     targets: [
         .executableTarget(
             name: "pana",
