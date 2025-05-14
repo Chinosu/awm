@@ -1,13 +1,13 @@
 import AppKit
 
-func hotkeys() {
+func hotkeys(_ wm: WindowManager) {
     let eventTap = CGEvent.tapCreate(
         tap: .cgSessionEventTap,
         place: .headInsertEventTap,
         options: .defaultTap,
         eventsOfInterest: 1 << CGEventType.keyDown.rawValue,
         callback: keyHandler,
-        userInfo: nil
+        userInfo: Unmanaged.passRetained(wm).toOpaque()
     )!
 
     let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)!
@@ -19,7 +19,6 @@ func hotkeys() {
     CGEvent.tapEnable(tap: eventTap, enable: true)
     CFRunLoopRun()
     print("byeee")
-
 }
 
 private let flagsUnset: CGEventFlags = [
@@ -67,6 +66,20 @@ private func keyHandler(
     let bitsPadded = String(repeating: "0", count: 32 - bits.count) + bits
     print("\u{1b}[0;36mhotkey cmd+\(key)\u{1b}[0m", terminator: " ")
     print("\u{1b}[0;35m\(bitsPadded)\u{1b}[0m")
+
+    let wm = unsafeBitCast(userInfo!, to: WindowManager.self)
+    wm.update()
+    if key - 1 < wm.windows.count {
+        print("raising window (\(key))")
+        let win = wm.windows[key - 1]
+
+        var pid: pid_t = 0
+        AXUIElementGetPid(win, &pid)
+        let app = NSRunningApplication(processIdentifier: pid)!
+        app.activate()
+
+        AXUIElementPerformAction(win, kAXRaiseAction as CFString)
+    }
 
     return nil
 }

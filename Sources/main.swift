@@ -1,5 +1,5 @@
 import Foundation
 
-// hotkeys()
-await windowDetect()
+let wm = WindowManager()
+hotkeys(wm)
 // RunLoop.main.run()

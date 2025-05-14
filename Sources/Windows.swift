@@ -1,85 +1,97 @@
 import AppKit
 
-let blacklist: Set = [
-    "Window Server",
-    "CursorUIViewService",
-    "Open and Save Panel Service",
-    "Spotlight",
-    "CursorUIViewService",
-    "SiriNCService",
-    "Emoji & Symbols",
-    "Universal Control",
-    "loginwindow",
-    "Window Server",
-]
+class WindowManager {
+    var windows = [AXUIElement]()
 
-func windowDetect() async {
-    let cgWindows =
-        (CGWindowListCopyWindowInfo(
-            [.optionAll, .excludeDesktopElements],
-            kCGNullWindowID
-        )
-        as! [[CFString: AnyObject]])
-        .filter { win in
-            guard win[kCGWindowLayer] as! Int == 0 else {
-                return false
-            }
-            guard !blacklist.contains(win[kCGWindowOwnerName] as! String) else {
-                return false
-            }
+    func update() {
+        let pids =
+            Array(
+                (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
+                    as! [[CFString: AnyObject]])
+                    .lazy
+                    .reversed()
+                    .filter { win in
+                        guard win[kCGWindowLayer] as! Int == 0 else {
+                            return false
+                        }
+                        guard !blacklisted(windowOwnerName: win[kCGWindowOwnerName] as! String)
+                        else {
+                            return false
+                        }
 
-            let bounds = win[kCGWindowBounds] as! [String: Int]
-            let height = bounds["Height"]!
-            let width = bounds["Width"]!
-            let x = bounds["X"]!
-            let y = bounds["Y"]!
-            guard height >= 100 && width >= 100 else {
-                return false
-            }
-            guard height != 500 || width != 500 || x != 0 || y != 669 else {
-                return false
-            }
+                        let bounds = win[kCGWindowBounds] as! [String: Int]
+                        let height = bounds["Height"]!
+                        let width = bounds["Width"]!
+                        let x = bounds["X"]!
+                        let y = bounds["Y"]!
+                        guard height >= 100 && width >= 100 else {
+                            return false
+                        }
+                        guard height != 500 || width != 500 || x != 0 || y != 669 else {
+                            return false
+                        }
 
-            return true
+                        return true
+                    }
+                    .map { win in win[kCGWindowOwnerPID] as! pid_t }
+            )
+
+        var pid_seen = Set<pid_t>()
+        var win_seen = Set<AXUIElement>()
+        for pid in pids {
+            guard !pid_seen.contains(pid) else { continue }
+            pid_seen.insert(pid)
+
+            let app = AXUIElementCreateApplication(pid)
+
+            // var v: CFArray?
+            // AXUIElementCopyAttributeNames(elem, &v)
+            // print(v!)
+
+            var value: CFTypeRef?
+            AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+            let windows = value as! [AXUIElement]
+
+            for win in windows {
+                // var value: CFArray?
+                // AXUIElementCopyAttributeNames(win, &value)
+                // print(value!)
+                win_seen.insert(win)
+                guard !self.windows.contains(win) else { continue }
+                self.windows.append(win)
+            }
         }
+        self.windows.removeAll { win in !win_seen.contains(win) }
 
-    // print(windows)
-    // let d = try! JSONSerialization.data(withJSONObject: cgWindows, options: .prettyPrinted)
-    // try! d.write(to: URL(fileURLWithPath: "./a.json"))
+        // let app = AXUIElementCreateApplication(pid)
+        // var value: CFTypeRef?
+        // AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+        // let windows = value as! CFArray
+        // print("found \(CFArrayGetCount(windows)) terminals")
+        // let window = unsafeBitCast(CFArrayGetValueAtIndex(windows, 0), to: AXUIElement.self)
 
-    let pids = Set(cgWindows.lazy.map { $0[kCGWindowOwnerPID] as! pid_t })
-    var originWins = [AXUIElement]()
-    for pid in pids {
-        var value: CFTypeRef?
+        // var newPos = CGPoint(x: 100, y: 100)
+        // let pos = AXValueCreate(.cgPoint, &newPos)!
+        // AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, pos)
 
-        let elem = AXUIElementCreateApplication(pid)
-        AXUIElementCopyAttributeValue(elem, kAXWindowsAttribute as CFString, &value)
-        let axWindows = value as! [AXUIElement]
-        originWins.append(contentsOf: axWindows)
-        print(axWindows)
-
-        for win in axWindows {
-            AXUIElementCopyAttributeValue(win, kAXTitleAttribute as CFString, &value)
-            let title = value as! String
-            print("\t\(title)")
-        }
+        // var newSize = CGSize(width: 100, height: 100)
+        // let size = AXValueCreate(.cgPoint, &newSize)!
+        // AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, size)
     }
+}
 
-    for pid in pids {
-        var value: CFTypeRef?
-
-        let elem = AXUIElementCreateApplication(pid)
-        AXUIElementCopyAttributeValue(elem, kAXWindowsAttribute as CFString, &value)
-        let axWindows = value as! [AXUIElement]
-
-        for win in axWindows {
-            for originWin in originWins {
-                if win == originWin {
-                    // this shows we can manage windows references ourselves
-                    // despite `AXUIElement` addresses being different
-                    print("match!!")
-                }
-            }
-        }
+func blacklisted(windowOwnerName: String) -> Bool {
+    switch windowOwnerName {
+    case "Window Server",
+        "CursorUIViewService",
+        "Open and Save Panel Service",
+        "Spotlight",
+        "SiriNCService",
+        "Emoji & Symbols",
+        "Universal Control",
+        "loginwindow":
+        true
+    default:
+        false
     }
 }
