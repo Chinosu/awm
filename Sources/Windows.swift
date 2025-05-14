@@ -3,6 +3,9 @@ import AppKit
 class WindowManager {
     var windows = [AXUIElement]()
 
+    var curr = AXUIElement?(nil)
+    var prev = AXUIElement?(nil)
+
     func update() {
         let pids =
             Array(

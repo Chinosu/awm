@@ -45,6 +45,7 @@ private func keyHandler(
     guard kind == .keyDown else { return Unmanaged.passUnretained(event) }
     let key =
         switch event.getIntegerValueField(.keyboardEventKeycode) {
+        case 50: 0  // '`'
         case 18: 1
         case 19: 2
         case 20: 3
@@ -69,11 +70,26 @@ private func keyHandler(
 
     let wm = unsafeBitCast(userInfo!, to: WindowManager.self)
     wm.update()
-    if key - 1 < wm.windows.count {
+    if key == 0 {
+        if let win = wm.prev {
+            swap(&wm.curr, &wm.prev)
+
+            var pid = pid_t(0)
+            AXUIElementGetPid(win, &pid)
+            let app = NSRunningApplication(processIdentifier: pid)!
+            app.activate()
+
+            AXUIElementPerformAction(win, kAXRaiseAction as CFString)
+        }
+    } else if key - 1 < wm.windows.count {
         print("raising window (\(key))")
         let win = wm.windows[key - 1]
+        if win != wm.curr {
+            wm.prev = wm.curr
+            wm.curr = win
+        }
 
-        var pid: pid_t = 0
+        var pid = pid_t(0)
         AXUIElementGetPid(win, &pid)
         let app = NSRunningApplication(processIdentifier: pid)!
         app.activate()
