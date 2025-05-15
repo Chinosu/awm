@@ -5,7 +5,7 @@ func hotkeys(_ wm: inout WindowManager) {
         tap: .cgSessionEventTap,
         place: .headInsertEventTap,
         options: .defaultTap,
-        eventsOfInterest: 1 << CGEventType.keyDown.rawValue,
+        eventsOfInterest: 1 << CGEventType.keyDown.rawValue | 1 << CGEventType.keyUp.rawValue,
         callback: keyHandler,
         userInfo: withUnsafeMutablePointer(to: &wm) { UnsafeMutableRawPointer($0) }
     )!
@@ -42,7 +42,7 @@ private func keyHandler(
     event: CGEvent,
     userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
-    guard kind == .keyDown else { return Unmanaged.passUnretained(event) }
+    // guard kind == .keyDown else { return Unmanaged.passUnretained(event) }
     let key =
         switch event.getIntegerValueField(.keyboardEventKeycode) {
         case 50: 0  // '`'
@@ -63,38 +63,31 @@ private func keyHandler(
         return Unmanaged.passUnretained(event)
     }
 
-    let bits = String(event.flags.rawValue, radix: 2)
-    let bitsPadded = String(repeating: "0", count: 32 - bits.count) + bits
-    print("\u{1b}[0;36mhotkey cmd+\(key)\u{1b}[0m", terminator: " ")
-    print("\u{1b}[0;35m\(bitsPadded)\u{1b}[0m")
+    switch kind {
+    case .keyDown:
+        // let bits = String(event.flags.rawValue, radix: 2)
+        // let bitsPadded = String(repeating: "0", count: 32 - bits.count) + bits
+        // print("\u{1b}[0;36mhotkey cmd+\(key) down\u{1b}[0m", terminator: " ")
+        // print("\u{1b}[0;35m\(bitsPadded)\u{1b}[0m")
 
-    let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
-    wm.pointee.update()
-    if key == 0 {
-        if let win = wm.pointee.prev {
-            swap(&wm.pointee.curr, &wm.pointee.prev)
-
-            var pid = pid_t(0)
-            AXUIElementGetPid(win, &pid)
-            let app = NSRunningApplication(processIdentifier: pid)!
-            app.activate()
-
-            AXUIElementPerformAction(win, kAXRaiseAction as CFString)
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.updateWindows()
+        if key == 0 {
+            wm.pointee.flipRecent()
+        } else {
+            wm.pointee.flipTo(index: key - 1)
         }
-    } else if key - 1 < wm.pointee.windows.count {
-        print("raising window (\(key))")
-        let win = wm.pointee.windows[key - 1]
-        if win != wm.pointee.curr {
-            wm.pointee.prev = wm.pointee.curr
-            wm.pointee.curr = win
-        }
+    case .keyUp:
+        // let bits = String(event.flags.rawValue, radix: 2)
+        // let bitsPadded = String(repeating: "0", count: 32 - bits.count) + bits
+        // print("\u{1b}[0;36mhotkey cmd+\(key) up\u{1b}[0m", terminator: " ")
+        // print("\u{1b}[0;35m\(bitsPadded)\u{1b}[0m")
 
-        var pid = pid_t(0)
-        AXUIElementGetPid(win, &pid)
-        let app = NSRunningApplication(processIdentifier: pid)!
-        app.activate()
-
-        AXUIElementPerformAction(win, kAXRaiseAction as CFString)
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.updateWindows()
+        wm.pointee.undoFlip()
+    default:
+        return Unmanaged.passUnretained(event)
     }
 
     return nil
