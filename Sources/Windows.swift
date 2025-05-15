@@ -1,12 +1,12 @@
 import AppKit
 
-class WindowManager {
+struct WindowManager {
     var windows = [AXUIElement]()
 
     var curr = AXUIElement?(nil)
     var prev = AXUIElement?(nil)
 
-    func update() {
+    mutating func update() {
         let pids =
             Array(
                 (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)

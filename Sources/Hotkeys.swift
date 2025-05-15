@@ -1,13 +1,13 @@
 import AppKit
 
-func hotkeys(_ wm: WindowManager) {
+func hotkeys(_ wm: inout WindowManager) {
     let eventTap = CGEvent.tapCreate(
         tap: .cgSessionEventTap,
         place: .headInsertEventTap,
         options: .defaultTap,
         eventsOfInterest: 1 << CGEventType.keyDown.rawValue,
         callback: keyHandler,
-        userInfo: Unmanaged.passRetained(wm).toOpaque()
+        userInfo: withUnsafeMutablePointer(to: &wm) { UnsafeMutableRawPointer($0) }
     )!
 
     let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)!
@@ -68,11 +68,11 @@ private func keyHandler(
     print("\u{1b}[0;36mhotkey cmd+\(key)\u{1b}[0m", terminator: " ")
     print("\u{1b}[0;35m\(bitsPadded)\u{1b}[0m")
 
-    let wm = unsafeBitCast(userInfo!, to: WindowManager.self)
-    wm.update()
+    let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+    wm.pointee.update()
     if key == 0 {
-        if let win = wm.prev {
-            swap(&wm.curr, &wm.prev)
+        if let win = wm.pointee.prev {
+            swap(&wm.pointee.curr, &wm.pointee.prev)
 
             var pid = pid_t(0)
             AXUIElementGetPid(win, &pid)
@@ -81,12 +81,12 @@ private func keyHandler(
 
             AXUIElementPerformAction(win, kAXRaiseAction as CFString)
         }
-    } else if key - 1 < wm.windows.count {
+    } else if key - 1 < wm.pointee.windows.count {
         print("raising window (\(key))")
-        let win = wm.windows[key - 1]
-        if win != wm.curr {
-            wm.prev = wm.curr
-            wm.curr = win
+        let win = wm.pointee.windows[key - 1]
+        if win != wm.pointee.curr {
+            wm.pointee.prev = wm.pointee.curr
+            wm.pointee.curr = win
         }
 
         var pid = pid_t(0)
