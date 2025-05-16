@@ -15,6 +15,7 @@ struct WindowManager {
 
         self.curr = self.windows[0]
         self.prev = self.windows[0]
+        activate(win: self.windows[0])
     }
 
     mutating func updateWindows() {
@@ -42,10 +43,14 @@ struct WindowManager {
         // AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, size)
     }
 
-    mutating func flipRecent() {
-        activate(win: self.prev)
-        swap(&self.curr, &self.prev)
-        self.flipHold = 0
+    mutating func flipPrev() {
+        if self.flipHold == -1 {
+            activate(win: self.prev)
+            swap(&self.curr, &self.prev)
+            self.flipHold = 0
+        } else if self.flipHold < 2 {
+            self.flipHold += 1
+        }
     }
 
     mutating func flipTo(index: Int) {
@@ -66,7 +71,8 @@ struct WindowManager {
 
     mutating func undoFlip() {
         if self.flipHold >= 2 {
-            self.flipRecent()
+            activate(win: self.prev)
+            swap(&self.curr, &self.prev)
         }
 
         self.flipHold = -1
@@ -76,6 +82,10 @@ struct WindowManager {
         guard 0 <= index && index <= self.windows.count else { return }
         guard let i = self.windows.firstIndex(of: self.curr) else { return }
         self.windows.swapAt(i, index)
+
+        self.prev = self.curr
+        self.curr = self.windows[i]
+        activate(win: self.windows[i])
     }
 }
 

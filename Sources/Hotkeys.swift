@@ -52,7 +52,7 @@ private func keyHandler(
         let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
         wm.pointee.updateWindows()
         if key == 0 {
-            wm.pointee.flipRecent()
+            wm.pointee.flipPrev()
         } else {
             wm.pointee.flipTo(index: key - 1)
         }
