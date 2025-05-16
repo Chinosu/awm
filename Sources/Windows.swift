@@ -86,6 +86,7 @@ struct WindowManager {
         self.prev = self.curr
         self.curr = self.windows[i]
         activate(win: self.windows[i])
+        self.flipHold = -1
     }
 }
 

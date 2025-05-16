@@ -57,7 +57,7 @@ private func keyHandler(
             wm.pointee.flipTo(index: key - 1)
         }
 
-    case (false, true, .keyUp):
+    case (false, _, .keyUp):
         let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
         wm.pointee.updateWindows()
         wm.pointee.undoFlip()
