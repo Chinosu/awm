@@ -1,65 +1,30 @@
 import AppKit
 
 struct WindowManager {
-    var windows = [AXUIElement]()
     var flipHold = -1
-    var curr: AXUIElement? = nil
-    var prev: AXUIElement? = nil
-    var swapWin: AXUIElement? = nil
+
+    var windows: [AXUIElement]
+    var curr: AXUIElement
+    var prev: AXUIElement
+
+    init() {
+        self.windows = getWindows()
+        guard self.windows.count > 0 else {
+            fatalError("0 windows D:")
+        }
+
+        self.curr = self.windows[0]
+        self.prev = self.windows[0]
+    }
 
     mutating func updateWindows() {
-        let pids =
-            Array(
-                (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
-                    as! [[CFString: AnyObject]])
-                    .lazy
-                    .reversed()
-                    .filter { win in
-                        guard
-                            win[kCGWindowLayer] as! Int == 0
-                                && !blacklisted(windowOwnerName: win[kCGWindowOwnerName] as! String)
-                        else { return false }
-
-                        let bounds = win[kCGWindowBounds] as! [String: Int]
-                        let height = bounds["Height"]!
-                        let width = bounds["Width"]!
-                        let x = bounds["X"]!
-                        let y = bounds["Y"]!
-                        guard
-                            height >= 100 && width >= 100
-                                && (height != 500 || width != 500 || x != 0 || y != 669)
-                        else { return false }
-                        return true
-                    }
-                    .map { win in win[kCGWindowOwnerPID] as! pid_t }
-            )
-
-        var pid_seen = Set<pid_t>()
-        var win_seen = Set<AXUIElement>()
-        for pid in pids {
-            guard !pid_seen.contains(pid) else { continue }
-            pid_seen.insert(pid)
-
-            let app = AXUIElementCreateApplication(pid)
-
-            // var v: CFArray?
-            // AXUIElementCopyAttributeNames(elem, &v)
-            // print(v!)
-
-            var value: CFTypeRef?
-            AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
-            let wins = value as! [AXUIElement]
-
-            for win in wins {
-                // var value: CFArray?
-                // AXUIElementCopyAttributeNames(win, &value)
-                // print(value!)
-                win_seen.insert(win)
-                guard !self.windows.contains(win) else { continue }
+        let wins = getWindows()
+        self.windows.removeAll { win in !wins.contains(win) }
+        for win in wins {
+            if !self.windows.contains(win) {
                 self.windows.append(win)
             }
         }
-        self.windows.removeAll { win in !win_seen.contains(win) }
 
         // let app = AXUIElementCreateApplication(pid)
         // var value: CFTypeRef?
@@ -78,10 +43,9 @@ struct WindowManager {
     }
 
     mutating func flipRecent() {
-        guard let win = self.prev else { return }
+        activate(win: self.prev)
         swap(&self.curr, &self.prev)
         self.flipHold = 0
-        activate(win: win)
     }
 
     mutating func flipTo(index: Int) {
@@ -94,14 +58,14 @@ struct WindowManager {
 
             self.flipHold = 0
         } else {
-            if self.flipHold >= 0 {
+            if 0 <= self.flipHold && self.flipHold < 2 {
                 self.flipHold += 1
             }
         }
     }
 
     mutating func undoFlip() {
-        if self.flipHold > 1 {
+        if self.flipHold >= 2 {
             self.flipRecent()
         }
 
@@ -110,13 +74,8 @@ struct WindowManager {
 
     mutating func swapWins(index: Int) {
         guard 0 <= index && index <= self.windows.count else { return }
-        let win = self.windows[index]
-        if let other = self.swapWin {
-            let i = self.windows.firstIndex(of: other)!
-            self.windows.swapAt(i, index)
-        } else {
-            self.swapWin = win
-        }
+        guard let i = self.windows.firstIndex(of: self.curr) else { return }
+        self.windows.swapAt(i, index)
     }
 }
 
@@ -143,4 +102,45 @@ private func activate(win: AXUIElement) {
     app.activate()
 
     AXUIElementPerformAction(win, kAXRaiseAction as CFString)
+}
+
+private func getWindows() -> [AXUIElement] {
+    let pids =
+        (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
+        as! [[CFString: AnyObject]])
+        .lazy
+        .reversed()
+        .filter { win in
+            guard
+                win[kCGWindowLayer] as! Int == 0
+                    && !blacklisted(windowOwnerName: win[kCGWindowOwnerName] as! String)
+            else { return false }
+
+            let bounds = win[kCGWindowBounds] as! [String: Int]
+            let height = bounds[kCGDisplayHeight]!
+            let width = bounds[kCGDisplayWidth]!
+            let x = bounds["X"]!
+            let y = bounds["Y"]!
+            guard
+                height >= 100 && width >= 100
+                    && (height != 500 || width != 500 || x != 0 || y != 669)
+            else { return false }
+            return true
+        }
+        .map { win in win[kCGWindowOwnerPID] as! pid_t }
+        .makeIterator()
+
+    var uniqPids = Set<pid_t>()
+    var wins = [AXUIElement]()
+    for pid in pids {
+        guard !uniqPids.contains(pid) else { continue }
+        uniqPids.insert(pid)
+        let app = AXUIElementCreateApplication(pid)
+
+        var value: CFTypeRef?
+        AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+        wins.append(contentsOf: value as! [AXUIElement])
+    }
+
+    return wins
 }
