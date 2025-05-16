@@ -21,31 +21,15 @@ func hotkeys(_ wm: inout WindowManager) {
     print("byeee")
 }
 
-private let flagsUnset: CGEventFlags = [
-    // .maskAlphaShift,
-    .maskShift,
-    .maskControl,
-    .maskAlternate,
-    // .maskHelp,
-    .maskSecondaryFn,
-    // .maskNumericPad,
-]
-
-private let flagsSet: CGEventFlags = [
-    .maskCommand,
-    .maskNonCoalesced,
-]
-
 private func keyHandler(
     proxy: CGEventTapProxy,
     kind: CGEventType,
     event: CGEvent,
     userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
-    // guard kind == .keyDown else { return Unmanaged.passUnretained(event) }
     let key =
         switch event.getIntegerValueField(.keyboardEventKeycode) {
-        case 50: 0  // '`'
+        case 50: 0  // backtick
         case 18: 1
         case 19: 2
         case 20: 3
@@ -55,21 +39,16 @@ private func keyHandler(
         case 26: 7
         case 28: 8
         case 25: 9
-        case 29: 0
         default: -1
         }
-    guard key != -1 else { return Unmanaged.passUnretained(event) }
-    guard event.flags.isDisjoint(with: flagsUnset) && event.flags.contains(flagsSet) else {
-        return Unmanaged.passUnretained(event)
-    }
+    guard
+        key != -1
+            && event.flags.contains(.maskNonCoalesced)
+            && event.flags.isDisjoint(with: [.maskShift, .maskControl, .maskHelp, .maskSecondaryFn])
+    else { return Unmanaged.passUnretained(event) }
 
-    switch kind {
-    case .keyDown:
-        // let bits = String(event.flags.rawValue, radix: 2)
-        // let bitsPadded = String(repeating: "0", count: 32 - bits.count) + bits
-        // print("\u{1b}[0;36mhotkey cmd+\(key) down\u{1b}[0m", terminator: " ")
-        // print("\u{1b}[0;35m\(bitsPadded)\u{1b}[0m")
-
+    switch (event.flags.contains(.maskAlternate), event.flags.contains(.maskCommand), kind) {
+    case (false, true, .keyDown):
         let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
         wm.pointee.updateWindows()
         if key == 0 {
@@ -77,15 +56,17 @@ private func keyHandler(
         } else {
             wm.pointee.flipTo(index: key - 1)
         }
-    case .keyUp:
-        // let bits = String(event.flags.rawValue, radix: 2)
-        // let bitsPadded = String(repeating: "0", count: 32 - bits.count) + bits
-        // print("\u{1b}[0;36mhotkey cmd+\(key) up\u{1b}[0m", terminator: " ")
-        // print("\u{1b}[0;35m\(bitsPadded)\u{1b}[0m")
 
+    case (false, true, .keyUp):
         let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
         wm.pointee.updateWindows()
         wm.pointee.undoFlip()
+
+    case (true, true, .keyDown):
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.updateWindows()
+        wm.pointee.swapWins(index: key - 1)
+
     default:
         return Unmanaged.passUnretained(event)
     }

@@ -5,6 +5,7 @@ struct WindowManager {
     var flipHold = -1
     var curr: AXUIElement? = nil
     var prev: AXUIElement? = nil
+    var swapWin: AXUIElement? = nil
 
     mutating func updateWindows() {
         let pids =
@@ -14,26 +15,20 @@ struct WindowManager {
                     .lazy
                     .reversed()
                     .filter { win in
-                        guard win[kCGWindowLayer] as! Int == 0 else {
-                            return false
-                        }
-                        guard !blacklisted(windowOwnerName: win[kCGWindowOwnerName] as! String)
-                        else {
-                            return false
-                        }
+                        guard
+                            win[kCGWindowLayer] as! Int == 0
+                                && !blacklisted(windowOwnerName: win[kCGWindowOwnerName] as! String)
+                        else { return false }
 
                         let bounds = win[kCGWindowBounds] as! [String: Int]
                         let height = bounds["Height"]!
                         let width = bounds["Width"]!
                         let x = bounds["X"]!
                         let y = bounds["Y"]!
-                        guard height >= 100 && width >= 100 else {
-                            return false
-                        }
-                        guard height != 500 || width != 500 || x != 0 || y != 669 else {
-                            return false
-                        }
-
+                        guard
+                            height >= 100 && width >= 100
+                                && (height != 500 || width != 500 || x != 0 || y != 669)
+                        else { return false }
                         return true
                     }
                     .map { win in win[kCGWindowOwnerPID] as! pid_t }
@@ -111,6 +106,17 @@ struct WindowManager {
         }
 
         self.flipHold = -1
+    }
+
+    mutating func swapWins(index: Int) {
+        guard 0 <= index && index <= self.windows.count else { return }
+        let win = self.windows[index]
+        if let other = self.swapWin {
+            let i = self.windows.firstIndex(of: other)!
+            self.windows.swapAt(i, index)
+        } else {
+            self.swapWin = win
+        }
     }
 }
 
