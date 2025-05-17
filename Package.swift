@@ -3,11 +3,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "pana",
+    name: "awm",
     platforms: [.macOS(.v15)],
     targets: [
         .executableTarget(
-            name: "pana",
+            name: "awm",
             swiftSettings: [
                 .unsafeFlags(
                     [

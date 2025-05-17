@@ -4,19 +4,19 @@
             "type": "swift",
             "request": "launch",
             "args": [],
-            "cwd": "${workspaceFolder:pana}",
-            "name": "Debug pana",
-            "program": "${workspaceFolder:pana}/.build/debug/pana",
-            "preLaunchTask": "swift: Build Debug pana"
+            "cwd": "${workspaceFolder:awm}",
+            "name": "Debug awm",
+            "program": "${workspaceFolder:awm}/.build/debug/awm",
+            "preLaunchTask": "swift: Build Debug awm"
         },
         {
             "type": "swift",
             "request": "launch",
             "args": [],
-            "cwd": "${workspaceFolder:pana}",
-            "name": "Release pana",
-            "program": "${workspaceFolder:pana}/.build/release/pana",
-            "preLaunchTask": "swift: Build Release pana"
+            "cwd": "${workspaceFolder:awm}",
+            "name": "Release awm",
+            "program": "${workspaceFolder:awm}/.build/release/awm",
+            "preLaunchTask": "swift: Build Release awm"
         }
     ]
 }
