@@ -6,17 +6,17 @@ struct WindowManager {
     var prev: AXUIElement
 
     init() {
-        self.windows = getWindows()
+        self.windows = Windows.getAll()
         guard self.windows.count > 0 else {
             fatalError("0 windows D:")
         }
 
-        self.curr = self.windows[0]
-        self.prev = self.windows[0]
+        self.curr = Windows.getTop()
+        self.prev = self.curr
     }
 
     mutating func updateWindows() {
-        let wins = getWindows()
+        let wins = Windows.getAll()
         self.windows.removeAll { win in !wins.contains(win) }
         for win in wins {
             if !self.windows.contains(win) {
@@ -66,59 +66,74 @@ struct WindowManager {
     }
 }
 
-private func blacklisted(windowOwnerName: String) -> Bool {
-    switch windowOwnerName {
-    case "Window Server",
-        "CursorUIViewService",
-        "Open and Save Panel Service",
-        "Spotlight",
-        "SiriNCService",
-        "Emoji & Symbols",
-        "Universal Control",
-        "loginwindow":
-        true
-    default:
-        false
-    }
-}
-
-private func getWindows() -> [AXUIElement] {
-    let pids =
-        (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
-        as! [[CFString: AnyObject]])
-        .lazy
-        .reversed()
-        .filter { win in
-            guard
-                win[kCGWindowLayer] as! Int == 0
-                    && !blacklisted(windowOwnerName: win[kCGWindowOwnerName] as! String)
-            else { return false }
-
-            let bounds = win[kCGWindowBounds] as! [String: Int]
-            let height = bounds[kCGDisplayHeight]!
-            let width = bounds[kCGDisplayWidth]!
-            let x = bounds["X"]!
-            let y = bounds["Y"]!
-            guard
-                height >= 100 && width >= 100
-                    && (height != 500 || width != 500 || x != 0 || y != 669)
-            else { return false }
-            return true
-        }
-        .map { win in win[kCGWindowOwnerPID] as! pid_t }
-        .makeIterator()
-
-    var uniqPids = Set<pid_t>()
-    var wins = [AXUIElement]()
-    for pid in pids {
-        guard !uniqPids.contains(pid) else { continue }
-        uniqPids.insert(pid)
+struct Windows {
+    static func getTop() -> AXUIElement {
+        let pid = NSWorkspace.shared.frontmostApplication!.processIdentifier
         let app = AXUIElementCreateApplication(pid)
 
-        var value: CFTypeRef?
-        AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
-        wins.append(contentsOf: value as! [AXUIElement])
+        let focusedWin = {
+            var value: CFTypeRef?
+            AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value)
+            return value as! AXUIElement
+        }()
+
+        return focusedWin
     }
 
-    return wins
+    static func getAll() -> [AXUIElement] {
+        let pids =
+            (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
+            as! [[CFString: AnyObject]])
+            .lazy
+            .reversed()
+            .filter { win in
+                guard
+                    win[kCGWindowLayer] as! Int == 0
+                        && !Windows.blacklisted(windowOwnerName: win[kCGWindowOwnerName] as! String)
+                else { return false }
+
+                let bounds = win[kCGWindowBounds] as! [String: Int]
+                let height = bounds[kCGDisplayHeight]!
+                let width = bounds[kCGDisplayWidth]!
+                let x = bounds["X"]!
+                let y = bounds["Y"]!
+                guard
+                    height >= 100 && width >= 100
+                        && (height != 500 || width != 500 || x != 0 || y != 669)
+                else { return false }
+                return true
+            }
+            .map { win in win[kCGWindowOwnerPID] as! pid_t }
+            .makeIterator()
+
+        var uniqPids = Set<pid_t>()
+        var wins = [AXUIElement]()
+        for pid in pids {
+            guard !uniqPids.contains(pid) else { continue }
+            uniqPids.insert(pid)
+            let app = AXUIElementCreateApplication(pid)
+
+            var value: CFTypeRef?
+            AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
+            wins.append(contentsOf: value as! [AXUIElement])
+        }
+
+        return wins
+    }
+
+    static func blacklisted(windowOwnerName: String) -> Bool {
+        switch windowOwnerName {
+        case "Window Server",
+            "CursorUIViewService",
+            "Open and Save Panel Service",
+            "Spotlight",
+            "SiriNCService",
+            "Emoji & Symbols",
+            "Universal Control",
+            "loginwindow":
+            true
+        default:
+            false
+        }
+    }
 }
