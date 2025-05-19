@@ -76,13 +76,11 @@ struct Windows {
     static func getTop() -> AXUIElement {
         let pid = NSWorkspace.shared.frontmostApplication!.processIdentifier
         let app = AXUIElementCreateApplication(pid)
-
         let focusedWin = {
             var value: CFTypeRef?
             AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value)
             return value as! AXUIElement
         }()
-
         return focusedWin
     }
 
