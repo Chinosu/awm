@@ -27,9 +27,13 @@ private func keyHandler(
     event: CGEvent,
     userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
+    _ = event.getIntegerValueField(.keyboardEventAutorepeat)
+    _ = event.getIntegerValueField(.keyboardEventKeyboardType)
+
     let key =
         switch event.getIntegerValueField(.keyboardEventKeycode) {
         case 50: 0  // backtick
+        case 48: 0  // tab
         case 18: 1
         case 19: 2
         case 20: 3
