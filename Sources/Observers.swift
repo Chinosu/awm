@@ -1,45 +1,71 @@
 import AppKit
 import ObjectiveC.runtime
 
-struct Observers {
-    var obs = [AXObserver]()
-    var names = [Box<String>]()
+actor Observers {
+    var obs = [NSRunningApplication: (AXObserver, Box<String>)]()
 
-    mutating func observeApps() {
-        NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification, object: nil,
-            queue: .main
-        ) { noti in
-            let newApp = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
-            print("==> \(newApp.localizedName!)")
-        }
-    }
-
-    mutating func observeWins() {
+    init() async {
         let apps = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
         for app in apps {
-            let box = Box(app.localizedName!)
-            self.names.append(box)
+            observe(app: app)
+        }
 
-            var observer: AXObserver?
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { noti in
+            let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
+            print("==> \(app.localizedName!)")
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didLaunchApplicationNotification,
+            object: nil,
+            queue: .main,
+            using: onLaunchApp
+        )
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification,
+            object: nil,
+            queue: .main,
+            using: onTerminateApp
+        )
+    }
+
+    func observe(app: NSRunningApplication) {
+        let obser = {
+            var ob: AXObserver?
             AXObserverCreate(
                 app.processIdentifier,
-                { obs, elem, notif, ptr in
-                    let box = Box<String>.unleak(ptr: ptr!)
-                    print(" --> \(box.item)")
-                },
-                &observer
+                { ob, elem, noti, ptr in print(" --> \(Box<String>.unleak(ptr: ptr!).item)") },
+                &ob
             )
+            return ob!
+        }()
 
-            let axApp = AXUIElementCreateApplication(app.processIdentifier)
-            AXObserverAddNotification(
-                observer!, axApp, kAXFocusedWindowChangedNotification as CFString, box.leak()
-            )
-            CFRunLoopAddSource(
-                CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer!), .defaultMode
-            )
+        let box = Box(app.localizedName!)
+        AXObserverAddNotification(
+            obser,
+            AXUIElementCreateApplication(app.processIdentifier),
+            kAXFocusedWindowChangedNotification as CFString,
+            box.leak()
+        )
+        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obser), .defaultMode)
 
-            self.obs.append(observer!)
-        }
+        self.obs[app] = (obser, box)
+    }
+
+    func onLaunchApp(noti: Notification) {
+        let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
+        print("[*] \(app.localizedName!)")
+
+        self.observe(app: app)
+    }
+
+    func onTerminateApp(noti: Notification) {
+        let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
+        print("[ ] \(app.localizedName!)")
+
+        self.obs.removeValue(forKey: app)
     }
 }
