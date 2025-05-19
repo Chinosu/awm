@@ -1,6 +1,6 @@
 import AppKit
 
-func experiments() async {
+func experiments() {
     guard let app = NSWorkspace.shared.frontmostApplication else {
         print("frontmost app was null, bye!")
 
@@ -29,6 +29,28 @@ func experiments() async {
 
     print(mainWin)
     print(focusedWin)
+
+    let observer = {
+        var observer: AXObserver?
+        AXObserverCreate(
+            app.processIdentifier,
+            { obs, elem, notif, userData in print("winch") },
+            &observer
+        )
+        return observer!
+    }()
+
+    AXObserverAddNotification(
+        observer, axApp, kAXFocusedWindowChangedNotification as CFString, nil)
+    CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
+
+    NSWorkspace.shared.notificationCenter.addObserver(
+        forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+    ) { notif in
+        print("appch")
+    }
+
+    RunLoop.current.run()
 }
 
 func pjson(_ item: Any) {
@@ -37,41 +59,3 @@ func pjson(_ item: Any) {
     let str = String(data: json, encoding: .utf8)!
     print(str)
 }
-
-// NSWorkspace.shared.notificationCenter.addObserver(
-//     forName: NSWorkspace.didActivateApplicationNotification,
-//     object: nil,
-//     queue: .main
-// ) { notif in
-//     guard let app = notif.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-//     else { return }
-
-//     print("appswitch \(app.localizedName ?? "unkn")")
-
-//     let element = AXUIElementCreateApplication(app.processIdentifier)
-//     var observer: AXObserver?
-//     AXObserverCreate(
-//         app.processIdentifier,
-//         { obs, elem, notification, contex in
-//             if notification as String == kAXFocusedWindowChangedNotification {
-//                 print("foc win change")
-//                 // broken
-//             }
-//         },
-//         &observer
-//     )
-
-//     if let observer = observer {
-//         AXObserverAddNotification(
-//             observer,
-//             element,
-//             kAXFocusedWindowChangedNotification as CFString,
-//             nil
-//         )
-//         CFRunLoopAddSource(
-//             CFRunLoopGetCurrent(),
-//             AXObserverGetRunLoopSource(observer),
-//             .defaultMode
-//         )
-//     }
-// }
