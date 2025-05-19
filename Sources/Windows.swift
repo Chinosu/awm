@@ -24,6 +24,12 @@ struct WindowManager {
             }
         }
 
+        let win = Windows.getTop()
+        if win != curr {
+            self.prev = self.curr
+            self.curr = win
+        }
+
         // let app = AXUIElementCreateApplication(pid)
         // var value: CFTypeRef?
         // AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
