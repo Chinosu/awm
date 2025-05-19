@@ -85,59 +85,31 @@ struct Windows {
     }
 
     static func getAll() -> [AXUIElement] {
-        let pids =
-            (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID)
-            as! [[CFString: AnyObject]])
-            .lazy
-            .reversed()
-            .filter { win in
-                guard
-                    win[kCGWindowLayer] as! Int == 0
-                        && !Windows.blacklisted(windowOwnerName: win[kCGWindowOwnerName] as! String)
-                else { return false }
-
-                let bounds = win[kCGWindowBounds] as! [String: Int]
-                let height = bounds[kCGDisplayHeight]!
-                let width = bounds[kCGDisplayWidth]!
-                let x = bounds["X"]!
-                let y = bounds["Y"]!
-                guard
-                    height >= 100 && width >= 100
-                        && (height != 500 || width != 500 || x != 0 || y != 669)
-                else { return false }
-                return true
-            }
-            .map { win in win[kCGWindowOwnerPID] as! pid_t }
-            .makeIterator()
-
         var uniqPids = Set<pid_t>()
         var wins = [AXUIElement]()
-        for pid in pids {
-            guard !uniqPids.contains(pid) else { continue }
-            uniqPids.insert(pid)
-            let app = AXUIElementCreateApplication(pid)
 
-            var value: CFTypeRef?
-            AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
-            wins.append(contentsOf: value as! [AXUIElement])
+        let apps = NSWorkspace.shared.runningApplications
+            .lazy
+            .filter { $0.activationPolicy == .regular }
+        for app in apps {
+            guard !uniqPids.contains(app.processIdentifier) else { continue }
+            uniqPids.insert(app.processIdentifier)
+            let axApp = AXUIElementCreateApplication(app.processIdentifier)
+
+            let appWins = {
+                var value: CFTypeRef?
+                AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value)
+                return value as! [AXUIElement]
+            }()
+            if app.bundleIdentifier == "com.apple.finder" {
+                // finder always has one dummy/hidden window
+                // therefore, skip it
+                wins.append(contentsOf: appWins[1...])
+            } else {
+                wins.append(contentsOf: appWins)
+            }
         }
 
         return wins
-    }
-
-    static func blacklisted(windowOwnerName: String) -> Bool {
-        switch windowOwnerName {
-        case "Window Server",
-            "CursorUIViewService",
-            "Open and Save Panel Service",
-            "Spotlight",
-            "SiriNCService",
-            "Emoji & Symbols",
-            "Universal Control",
-            "loginwindow":
-            true
-        default:
-            false
-        }
     }
 }
