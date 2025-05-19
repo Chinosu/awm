@@ -1,8 +1,6 @@
 import AppKit
 
 struct WindowManager {
-    var flipHold = -1
-
     var windows: [AXUIElement]
     var curr: AXUIElement
     var prev: AXUIElement
@@ -15,7 +13,6 @@ struct WindowManager {
 
         self.curr = self.windows[0]
         self.prev = self.windows[0]
-        activate(win: self.windows[0])
     }
 
     mutating func updateWindows() {
@@ -43,50 +40,29 @@ struct WindowManager {
         // AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, size)
     }
 
-    mutating func flipPrev() {
-        if self.flipHold == -1 {
-            activate(win: self.prev)
-            swap(&self.curr, &self.prev)
-            self.flipHold = 0
-        } else if self.flipHold < 2 {
-            self.flipHold += 1
-        }
+    mutating func raise(index: Int) {
+        self.updateWindows()
+        guard 0 <= index && index < self.windows.count else { return }
+        self.push(win: self.windows[index])
     }
 
-    mutating func flipTo(index: Int) {
-        guard 0 <= index && index < self.windows.count else { return }
-        let win = self.windows[index]
+    mutating func raisePrev() {
+        self.updateWindows()
+        self.push(win: self.prev)
+    }
+
+    private mutating func push(win: AXUIElement) {
         if win != self.curr {
+            guard win != self.curr else { return }
             self.prev = self.curr
             self.curr = win
-            activate(win: win)
-
-            self.flipHold = 0
-        } else {
-            if 0 <= self.flipHold && self.flipHold < 2 {
-                self.flipHold += 1
-            }
-        }
-    }
-
-    mutating func undoFlip() {
-        if self.flipHold >= 2 {
-            activate(win: self.prev)
-            swap(&self.curr, &self.prev)
         }
 
-        self.flipHold = -1
-    }
-
-    mutating func swapWins(index: Int) {
-        guard 0 <= index && index <= self.windows.count else { return }
-        guard let i = self.windows.firstIndex(of: self.curr) else { return }
-        self.windows.swapAt(i, index)
-
-        self.prev = self.curr
-        self.curr = self.windows[i]
-        activate(win: self.windows[i])
-        self.flipHold = -1
+        var pid: pid_t = 0
+        AXUIElementGetPid(win, &pid)
+        let app = NSRunningApplication(processIdentifier: pid)!
+        app.activate()
+        AXUIElementPerformAction(win, kAXRaiseAction as CFString)
     }
 }
 
@@ -104,15 +80,6 @@ private func blacklisted(windowOwnerName: String) -> Bool {
     default:
         false
     }
-}
-
-private func activate(win: AXUIElement) {
-    var pid: pid_t = 0
-    AXUIElementGetPid(win, &pid)
-    let app = NSRunningApplication(processIdentifier: pid)!
-    app.activate()
-
-    AXUIElementPerformAction(win, kAXRaiseAction as CFString)
 }
 
 private func getWindows() -> [AXUIElement] {

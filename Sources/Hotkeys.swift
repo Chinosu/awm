@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 
 func hotkeys(_ wm: inout WindowManager) {
     let eventTap = CGEvent.tapCreate(
@@ -27,50 +28,80 @@ private func keyHandler(
     event: CGEvent,
     userInfo: UnsafeMutableRawPointer?
 ) -> Unmanaged<CGEvent>? {
-    _ = event.getIntegerValueField(.keyboardEventAutorepeat)
-    _ = event.getIntegerValueField(.keyboardEventKeyboardType)
-
-    let key =
-        switch event.getIntegerValueField(.keyboardEventKeycode) {
-        case 50: 0  // backtick
-        case 48: 0  // tab
-        case 18: 1
-        case 19: 2
-        case 20: 3
-        case 21: 4
-        case 23: 5
-        case 22: 6
-        case 26: 7
-        case 28: 8
-        case 25: 9
-        default: -1
-        }
     guard
-        key != -1
-            && event.flags.contains(.maskNonCoalesced)
+        event.flags.contains(.maskNonCoalesced)
             && event.flags.isDisjoint(with: [.maskShift, .maskControl, .maskHelp, .maskSecondaryFn])
     else { return Unmanaged.passUnretained(event) }
 
-    switch (event.flags.contains(.maskAlternate), event.flags.contains(.maskCommand), kind) {
-    case (false, true, .keyDown):
-        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
-        wm.pointee.updateWindows()
-        if key == 0 {
-            wm.pointee.flipPrev()
-        } else {
-            wm.pointee.flipTo(index: key - 1)
-        }
+    let alt = event.flags.contains(.maskAlternate)
+    let cmd = event.flags.contains(.maskCommand)
+    let key = Int(event.getIntegerValueField(.keyboardEventKeycode))
+    let autorepeat = 0 != event.getIntegerValueField(.keyboardEventAutorepeat)
 
-    case (false, let cmd, .keyUp):
-        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
-        wm.pointee.updateWindows()
-        wm.pointee.undoFlip()
-        if !cmd { return Unmanaged.passUnretained(event) }
+    // print("=> \(key) \(autorepeat) \(kind) \(alt)+\(cmd)")
 
-    case (true, true, .keyDown):
+    switch (kind, key, autorepeat, (alt, cmd)) {
+    case (.keyDown, kVK_ANSI_1, false, (false, true)):
         let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
-        wm.pointee.updateWindows()
-        wm.pointee.swapWins(index: key - 1)
+        wm.pointee.raise(index: 0)
+    case (.keyDown, kVK_ANSI_1, true, (false, true)):
+        break
+
+    case (.keyDown, kVK_ANSI_2, false, (false, true)):
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.raise(index: 1)
+    case (.keyDown, kVK_ANSI_2, true, (false, true)):
+        break
+
+    case (.keyDown, kVK_ANSI_3, false, (false, true)):
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.raise(index: 2)
+    case (.keyDown, kVK_ANSI_3, true, (false, true)):
+        break
+
+    case (.keyDown, kVK_ANSI_4, false, (false, true)):
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.raise(index: 3)
+    case (.keyDown, kVK_ANSI_4, true, (false, true)):
+        break
+
+    case (.keyDown, kVK_ANSI_5, false, (false, true)):
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.raise(index: 4)
+    case (.keyDown, kVK_ANSI_5, true, (false, true)):
+        break
+
+    case (.keyDown, kVK_ANSI_6, false, (false, true)):
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.raise(index: 5)
+    case (.keyDown, kVK_ANSI_6, true, (false, true)):
+        break
+
+    case (.keyDown, kVK_ANSI_7, false, (false, true)):
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.raise(index: 6)
+    case (.keyDown, kVK_ANSI_7, true, (false, true)):
+        break
+
+    case (.keyDown, kVK_ANSI_8, false, (false, true)):
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.raise(index: 7)
+    case (.keyDown, kVK_ANSI_8, true, (false, true)):
+        break
+
+    case (.keyDown, kVK_ANSI_9, false, (false, true)):
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.raise(index: 8)
+    case (.keyDown, kVK_ANSI_9, true, (false, true)):
+        break
+
+    case (.keyDown, kVK_ANSI_Grave, false, (false, true)),
+        (.keyDown, kVK_Tab, false, (false, true)):
+        let wm = userInfo!.assumingMemoryBound(to: WindowManager.self)
+        wm.pointee.raisePrev()
+    case (.keyDown, kVK_ANSI_Grave, true, (false, true)),
+        (.keyDown, kVK_Tab, true, (false, true)):
+        break
 
     default:
         return Unmanaged.passUnretained(event)
