@@ -15,8 +15,8 @@ if argv.count > 1 {
 }
 
 let wc = WindowConductor()
-// Task {
-//     let oc = await ObserverConductor()
-// }
+Task {
+    let oc = await ObserverConductor()
+}
 hotkeys(wc)
 RunLoop.current.run()

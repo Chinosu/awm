@@ -68,6 +68,13 @@ actor ObserverConductor {
         guard app.activationPolicy == .regular else { return }
 
         print("[ ] \(app.localizedName!)")
+        let obser = self.obs[app]!.0
+        AXObserverRemoveNotification(
+            obser,
+            AXUIElementCreateApplication(app.processIdentifier),
+            kAXFocusedWindowChangedNotification as CFString
+        )  // can't tell if necessary or not
+        CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obser), .defaultMode)
         self.obs.removeValue(forKey: app)
     }
 }
