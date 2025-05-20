@@ -1,7 +1,7 @@
 import AppKit
 import ObjectiveC.runtime
 
-actor Observers {
+actor ObserverConductor {
     var obs = [NSRunningApplication: (AXObserver, Box<String>)]()
 
     init() async {
@@ -16,7 +16,7 @@ actor Observers {
             queue: .main
         ) { noti in
             let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
-            print("==> \(app.localizedName!)")
+            print("=> \(app.localizedName!)")
         }
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didLaunchApplicationNotification,
@@ -37,7 +37,7 @@ actor Observers {
             var ob: AXObserver?
             AXObserverCreate(
                 app.processIdentifier,
-                { ob, elem, noti, ptr in print(" --> \(Box<String>.from(raw: ptr!))") },
+                { ob, elem, noti, ptr in print("--> \(Box<String>.from(raw: ptr!))") },
                 &ob
             )
             return ob!

@@ -2,24 +2,22 @@ import AppKit
 import Carbon.HIToolbox
 
 func hotkeys(_ wc: WindowConductor) {
+    let ptr = Unmanaged.passRetained(wc)
+    // ptr.release()
     let eventTap = CGEvent.tapCreate(
         tap: .cgSessionEventTap,
         place: .headInsertEventTap,
         options: .defaultTap,
         eventsOfInterest: 1 << CGEventType.keyDown.rawValue | 1 << CGEventType.keyUp.rawValue,
         callback: keyDispatch,
-        userInfo: Unmanaged.passUnretained(wc).toOpaque()
+        userInfo: ptr.toOpaque()
     )!
 
     let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0)!
 
-    print("‧₊˚ ⋅")
-    print("ready wen u are :3")
-
+    print("‧₊˚ ⋅\u{10}ready wen u are :3")
     CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
     CGEvent.tapEnable(tap: eventTap, enable: true)
-    CFRunLoopRun()
-    print("byeee")
 }
 
 private func keyDispatch(
