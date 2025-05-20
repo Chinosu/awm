@@ -1,15 +1,15 @@
 class Box<T> {
-    var item: T
+    var value: T
 
-    init(_ item: T) {
-        self.item = item
+    init(_ value: T) {
+        self.value = value
     }
 
-    func leak() -> UnsafeMutableRawPointer {
+    func raw() -> UnsafeMutableRawPointer {
         return Unmanaged.passUnretained(self).toOpaque()
     }
 
-    static func unleak(ptr: UnsafeMutableRawPointer) -> Box<T> {
-        return Unmanaged<Box<T>>.fromOpaque(ptr).takeUnretainedValue()
+    static func from(raw ptr: UnsafeMutableRawPointer) -> T {
+        return Unmanaged<Box<T>>.fromOpaque(ptr).takeUnretainedValue().value
     }
 }

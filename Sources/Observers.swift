@@ -37,7 +37,7 @@ actor Observers {
             var ob: AXObserver?
             AXObserverCreate(
                 app.processIdentifier,
-                { ob, elem, noti, ptr in print(" --> \(Box<String>.unleak(ptr: ptr!).item)") },
+                { ob, elem, noti, ptr in print(" --> \(Box<String>.from(raw: ptr!))") },
                 &ob
             )
             return ob!
@@ -48,7 +48,7 @@ actor Observers {
             obser,
             AXUIElementCreateApplication(app.processIdentifier),
             kAXFocusedWindowChangedNotification as CFString,
-            box.leak()
+            box.raw()
         )
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obser), .defaultMode)
 
@@ -57,15 +57,17 @@ actor Observers {
 
     func onLaunchApp(noti: Notification) {
         let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
-        print("[*] \(app.localizedName!)")
+        guard app.activationPolicy == .regular else { return }
 
+        print("[*] \(app.localizedName!)")
         self.observe(app: app)
     }
 
     func onTerminateApp(noti: Notification) {
         let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
-        print("[ ] \(app.localizedName!)")
+        guard app.activationPolicy == .regular else { return }
 
+        print("[ ] \(app.localizedName!)")
         self.obs.removeValue(forKey: app)
     }
 }
