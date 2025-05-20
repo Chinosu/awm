@@ -14,6 +14,6 @@ if argv.count > 1 {
     exit(0)
 }
 
-var wm = WindowManager()
-hotkeys(&wm)
+let wc = WindowConductor()
+hotkeys(wc)
 // RunLoop.main.run()

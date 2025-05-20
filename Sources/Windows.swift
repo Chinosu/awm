@@ -1,30 +1,32 @@
 import AppKit
 
-struct WindowManager {
-    var windows: [AXUIElement]
+actor WindowConductor {
+    var wins: [AXUIElement]
     var curr: AXUIElement
     var prev: AXUIElement
 
     init() {
-        self.windows = Windows.getAll()
-        guard self.windows.count > 0 else {
+        print("\(argv) <--- todo")  // ???????
+
+        self.wins = Window.getAll()
+        guard self.wins.count > 0 else {
             fatalError("0 windows D:")
         }
 
-        self.curr = Windows.getTop()
+        self.curr = Window.getTop()
         self.prev = self.curr
     }
 
-    mutating func updateWindows() {
-        let wins = Windows.getAll()
-        self.windows.removeAll { win in !wins.contains(win) }
-        for win in wins {
-            if !self.windows.contains(win) {
-                self.windows.append(win)
+    func updateWindows() {
+        let newWins = Window.getAll()
+        self.wins.removeAll { win in !newWins.contains(win) }
+        for win in newWins {
+            if !self.wins.contains(win) {
+                self.wins.append(win)
             }
         }
 
-        let win = Windows.getTop()
+        let win = Window.getTop()
         if win != curr {
             self.prev = self.curr
             self.curr = win
@@ -46,18 +48,18 @@ struct WindowManager {
         // AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, size)
     }
 
-    mutating func raise(index: Int) {
+    func raise(index: Int) {
         self.updateWindows()
-        guard 0 <= index && index < self.windows.count else { return }
-        self.push(win: self.windows[index])
+        guard 0 <= index && index < self.wins.count else { return }
+        self.push(win: self.wins[index])
     }
 
-    mutating func raisePrev() {
+    func raisePrev() {
         self.updateWindows()
         self.push(win: self.prev)
     }
 
-    private mutating func push(win: AXUIElement) {
+    private func push(win: AXUIElement) {
         if win != self.curr {
             guard win != self.curr else { return }
             self.prev = self.curr
@@ -72,7 +74,7 @@ struct WindowManager {
     }
 }
 
-struct Windows {
+struct Window {
     static func getTop() -> AXUIElement {
         let pid = NSWorkspace.shared.frontmostApplication!.processIdentifier
         let app = AXUIElementCreateApplication(pid)
@@ -103,7 +105,7 @@ struct Windows {
             }()
             if app.bundleIdentifier == "com.apple.finder" {
                 // finder always has one dummy/hidden window
-                // therefore, skip it
+                // therefore skip it
                 wins.append(contentsOf: appWins[1...])
             } else {
                 wins.append(contentsOf: appWins)
