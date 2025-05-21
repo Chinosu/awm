@@ -29,7 +29,7 @@ func => <T>(left: UnsafeMutableRawPointer, right: T.Type) -> UnsafeMutablePointe
     left.assumingMemoryBound(to: right)
 }
 
-func dev() {
+func operators() {
     var x = 42
     let ptr = x&
     print(ptr*)

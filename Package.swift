@@ -31,6 +31,7 @@ let package = Package(
                     ], .when(configuration: .release)
                 )
             ],
-        )
+        ),
+        .testTarget(name: "awmtests", dependencies: ["awm"]),
     ]
 )

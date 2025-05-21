@@ -73,8 +73,8 @@ actor WindowConductor {
 
     func dbg() {
         print("=== dbg ===")
-        print("  \(self.windows.map(\.title!))")
-        print("  \(self.history.map(\.title!))")
+        print("  \(self.windows.map(\.title))")
+        print("  \(self.history.map(\.title))")
     }
 
     func updateWindows() {
