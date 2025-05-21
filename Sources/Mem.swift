@@ -1,6 +1,6 @@
 postfix operator &
 postfix func & <T>(left: inout T) -> UnsafeMutablePointer<T> {
-    withUnsafeMutablePointer(to: &left) { $0 }
+    withUnsafeMutablePointer(to: &left, \.self)
 }
 
 postfix operator *

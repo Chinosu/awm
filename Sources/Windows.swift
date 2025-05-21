@@ -2,19 +2,77 @@ import AppKit
 
 actor WindowConductor {
     var wins: [AXUIElement]
+
+    // bug: curr needs to be pruned of closed windows
     var curr: AXUIElement
     var prev: AXUIElement
 
-    init() {
-        print("\(argv) <--- todo")  // ???????
+    var winObservers = [pid_t: AXObserver]()
+    var launchAppObserver: (any NSObjectProtocol)? = nil
+    var activateAppObserver: (any NSObjectProtocol)? = nil
+    var terminateAppObserver: (any NSObjectProtocol)? = nil
 
+    init() async {
         self.wins = Window.getAll()
-        guard self.wins.count > 0 else {
-            fatalError("0 windows D:")
-        }
+        guard self.wins.count > 0 else { fatalError() }
+        guard let top = Window.getTop() else { fatalError() }
+        self.curr = top
+        self.prev = top
 
-        self.curr = Window.getTop()
+        for app in NSWorkspace.shared.runningApplications {
+            guard app.activationPolicy == .regular else { continue }
+            observe(pid: app.processIdentifier)
+        }
+        self.launchAppObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didLaunchApplicationNotification,
+            object: nil,
+            queue: .main,
+            using: onLaunchApp
+        )
+        self.activateAppObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main,
+            using: onActivateApp
+        )
+        self.terminateAppObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification,
+            object: nil,
+            queue: .main,
+            using: onTerminateApp
+        )
+    }
+
+    // // Swift 6.2
+    // nonisolated deinit {
+    //     if let observer = self.launchAppObserver {
+    //         NSWorkspace.shared.notificationCenter.removeObserver(
+    //             observer,
+    //             name: NSWorkspace.didLaunchApplicationNotification,
+    //             object: nil
+    //         )
+    //     }
+    //     if let observer = self.activateAppObserver {
+    //         NSWorkspace.shared.notificationCenter.removeObserver(
+    //             observer,
+    //             name: NSWorkspace.didActivateApplicationNotification,
+    //             object: nil
+    //         )
+    //     }
+    //     if let observer = self.terminateAppObserver {
+    //         NSWorkspace.shared.notificationCenter.removeObserver(
+    //             observer,
+    //             name: NSWorkspace.didTerminateApplicationNotification,
+    //             object: nil
+    //         )
+    //     }
+    // }
+
+    func windowChange() {
+        guard let win = Window.getTop() else { return }
+        guard win != self.curr else { return }
         self.prev = self.curr
+        self.curr = win
     }
 
     func updateWindows() {
@@ -26,10 +84,11 @@ actor WindowConductor {
             }
         }
 
-        let win = Window.getTop()
-        if win != curr {
-            self.prev = self.curr
-            self.curr = win
+        if let win = Window.getTop() {
+            if win != curr {
+                self.prev = self.curr
+                self.curr = win
+            }
         }
 
         // let app = AXUIElementCreateApplication(pid)
@@ -61,7 +120,6 @@ actor WindowConductor {
 
     private func push(win: AXUIElement) {
         if win != self.curr {
-            guard win != self.curr else { return }
             self.prev = self.curr
             self.curr = win
         }
@@ -72,18 +130,80 @@ actor WindowConductor {
         app.activate()
         AXUIElementPerformAction(win, kAXRaiseAction as CFString)
     }
+
+    func observe(pid: pid_t) {
+        let observer = {
+            var o: AXObserver?
+            AXObserverCreate(
+                pid,
+                { ob, win, noti, ptr in
+                    print("--> \(win)")
+                    let wc = Unmanaged<WindowConductor>.fromOpaque(ptr!).takeUnretainedValue()
+                    Task { await wc.windowChange() }
+                },
+                &o
+            )
+            return o!
+        }()
+
+        AXObserverAddNotification(
+            observer,
+            AXUIElementCreateApplication(pid),
+            kAXMainWindowChangedNotification as CFString,
+            Unmanaged.passUnretained(self).toOpaque()
+        )
+        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
+
+        self.winObservers[pid] = observer
+    }
+
+    func onLaunchApp(noti: Notification) {
+        let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
+        guard app.activationPolicy == .regular else { return }
+
+        print("[*] \(app.localizedName!)")
+        self.observe(pid: app.processIdentifier)
+    }
+
+    func onActivateApp(noti: Notification) {
+        let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
+        // guard app.activationPolicy == .regular else { return }
+
+        print("=> \(app.localizedName!)")
+        self.windowChange()
+    }
+
+    func onTerminateApp(noti: Notification) {
+        let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
+        guard app.activationPolicy == .regular else { return }
+
+        print("[ ] \(app.localizedName!)")
+        let observer = self.winObservers[app.processIdentifier]!
+        AXObserverRemoveNotification(
+            observer,
+            AXUIElementCreateApplication(app.processIdentifier),
+            kAXFocusedWindowChangedNotification as CFString
+        )
+        CFRunLoopRemoveSource(
+            CFRunLoopGetMain(),
+            AXObserverGetRunLoopSource(observer),
+            .defaultMode
+        )
+        self.winObservers.removeValue(forKey: app.processIdentifier)
+    }
+
 }
 
 struct Window {
-    static func getTop() -> AXUIElement {
-        let pid = NSWorkspace.shared.frontmostApplication!.processIdentifier
+    static func getTop() -> AXUIElement? {
+        guard let nsApp = NSWorkspace.shared.frontmostApplication else { return nil }
+        let pid = nsApp.processIdentifier
         let app = AXUIElementCreateApplication(pid)
-        let focusedWin = {
-            var value: CFTypeRef?
-            AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value)
-            return value as! AXUIElement
-        }()
-        return focusedWin
+
+        var value: CFTypeRef?
+        AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value)
+        guard value != nil else { return nil }
+        return (value as! AXUIElement)
     }
 
     static func getAll() -> [AXUIElement] {
@@ -98,11 +218,13 @@ struct Window {
             uniqPids.insert(app.processIdentifier)
             let axApp = AXUIElementCreateApplication(app.processIdentifier)
 
-            let appWins = {
-                var value: CFTypeRef?
-                AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value)
-                return value as! [AXUIElement]
-            }()
+            guard
+                let appWins = {
+                    var value: CFTypeRef?
+                    AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value)
+                    return value as? [AXUIElement]
+                }()
+            else { continue }
             if app.bundleIdentifier == "com.apple.finder" {
                 // finder always has one dummy/hidden window
                 // therefore skip it
