@@ -5,9 +5,15 @@ import PackageDescription
 let package = Package(
     name: "awm",
     platforms: [.macOS(.v15)],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-collections.git", branch: "main")
+    ],
     targets: [
         .executableTarget(
             name: "awm",
+            dependencies: [
+                .product(name: "Collections", package: "swift-collections")
+            ],
             swiftSettings: [
                 .unsafeFlags(
                     [
@@ -24,7 +30,7 @@ let package = Package(
                         "-remove-runtime-asserts",
                     ], .when(configuration: .release)
                 )
-            ]
+            ],
         )
     ]
 )

@@ -4,14 +4,16 @@ if #available(macOS 15.4.0, *) {
     let argv = CommandLine.arguments
     if argv.count > 1 {
         print("extra arguments detected-\u{10}doing experiments only")
-        // Task {
-        //     _ = await Observers.init()
-        //     print("init finished. i'm waiting!")
-        // }
-        // RunLoop.current.run()
-        // print(++"asd")
+        // dev()
 
-        dev()
+        let w = Wind.top()!
+        for k in w.keys() {
+            print("- \(k)")
+        }
+
+        print("")
+        print("> \(w.focused as Any)")
+
         exit(0)
     }
 

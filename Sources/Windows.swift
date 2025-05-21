@@ -1,12 +1,10 @@
 import AppKit
+import Collections
 
 @available(macOS 15.4.0, *)
 actor WindowConductor {
-    var wins: [AXUIElement]
-
-    // bug: curr needs to be pruned of closed windows
-    var curr: AXUIElement
-    var prev: AXUIElement
+    var windows: [Wind]
+    var history: [Wind]
 
     var winObservers = [pid_t: AXObserver]()
     var launchAppObserver: (any NSObjectProtocol)? = nil
@@ -14,11 +12,10 @@ actor WindowConductor {
     var terminateAppObserver: (any NSObjectProtocol)? = nil
 
     init() async {
-        self.wins = Window.getAll()
-        guard self.wins.count > 0 else { fatalError() }
-        guard let top = Window.getTop() else { fatalError() }
-        self.curr = top
-        self.prev = top
+        self.windows = Wind.all()
+        guard !self.windows.isEmpty else { fatalError() }
+        guard let top = Wind.top() else { fatalError() }
+        self.history = [top]
 
         for app in NSWorkspace.shared.runningApplications {
             guard app.activationPolicy == .regular else { continue }
@@ -68,26 +65,24 @@ actor WindowConductor {
         }
     }
 
-    func windowChange() {
-        guard let win = Window.getTop() else { return }
-        guard win != self.curr else { return }
-        self.prev = self.curr
-        self.curr = win
+    func pushHistory() {
+        guard let win = Wind.top() else { return }
+        guard win == self.history.last! else { return }
+        // self.history.append(win)
+    }
+
+    func dbg() {
+        print("=== dbg ===")
+        print("  \(self.windows.map(\.title!))")
+        print("  \(self.history.map(\.title!))")
     }
 
     func updateWindows() {
-        let newWins = Window.getAll()
-        self.wins.removeAll { win in !newWins.contains(win) }
-        for win in newWins {
-            if !self.wins.contains(win) {
-                self.wins.append(win)
-            }
-        }
-
-        if let win = Window.getTop() {
-            if win != curr {
-                self.prev = self.curr
-                self.curr = win
+        let new = Wind.all()
+        self.windows.removeAll(where: { !new.contains($0) })
+        for win in new {
+            if !self.windows.contains(win) {
+                self.windows.append(win)
             }
         }
 
@@ -109,26 +104,28 @@ actor WindowConductor {
 
     func raise(index: Int) {
         self.updateWindows()
-        guard 0 <= index && index < self.wins.count else { return }
-        self.push(win: self.wins[index])
+        guard 0 <= index && index < self.windows.count else { return }
+        push(win: self.windows[index])
+
+        self.dbg()
     }
 
     func raisePrev() {
         self.updateWindows()
-        self.push(win: self.prev)
+        if self.history.count > 1 {
+            self.push(win: self.history[self.history.count - 2])
+        }
     }
 
-    private func push(win: AXUIElement) {
-        if win != self.curr {
-            self.prev = self.curr
-            self.curr = win
+    private func push(win: Wind) {
+        print("(pus) [\(win.title!)] [\(self.history.last!.title!)]")
+
+        if win != self.history.last! {
+            self.history.append(win)
         }
 
-        var pid: pid_t = 0
-        AXUIElementGetPid(win, &pid)
-        let app = NSRunningApplication(processIdentifier: pid)!
-        app.activate()
-        AXUIElementPerformAction(win, kAXRaiseAction as CFString)
+        NSRunningApplication(processIdentifier: win.pid!)!.activate()
+        win.raise()!
     }
 
     func observe(pid: pid_t) {
@@ -137,9 +134,9 @@ actor WindowConductor {
             AXObserverCreate(
                 pid,
                 { ob, win, noti, ptr in
-                    print("--> \(win)")
+                    // print("--> \(win)")
                     let wc = Unmanaged<WindowConductor>.fromOpaque(ptr!).takeUnretainedValue()
-                    Task { await wc.windowChange() }
+                    Task { await wc.pushHistory() }
                 },
                 &o
             )
@@ -169,8 +166,8 @@ actor WindowConductor {
         let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
         // guard app.activationPolicy == .regular else { return }
 
-        print("=> \(app.localizedName!)")
-        self.windowChange()
+        // print("=> \(app.localizedName!)")
+        self.pushHistory()
     }
 
     func onTerminateApp(noti: Notification) {
@@ -194,8 +191,57 @@ actor WindowConductor {
 
 }
 
-struct Window {
-    static func getTop() -> AXUIElement? {
+struct Wind: Equatable {
+    let inner: AXUIElement
+
+    init(_ inner: AXUIElement) {
+        self.inner = inner
+    }
+
+    func keys() -> [String] {
+        var value: CFArray?
+        AXUIElementCopyAttributeNames(self.inner, &value)
+        return value as! [String]
+    }
+
+    func alive() -> Bool {
+        var value: CFTypeRef?
+        return .success
+            == AXUIElementCopyAttributeValue(self.inner, kAXMainAttribute as CFString, &value)
+    }
+
+    var focused: Bool? {
+        var value: CFTypeRef?
+        guard
+            AXUIElementCopyAttributeValue(self.inner, kAXFocusedAttribute as CFString, &value)
+                == .success
+        else { return nil }
+        return value as? Bool
+    }
+
+    var title: String? {
+        var value: CFTypeRef?
+        guard
+            AXUIElementCopyAttributeValue(self.inner, kAXTitleAttribute as CFString, &value)
+                == .success
+        else { return nil }
+        return value as? String
+    }
+
+    var pid: pid_t? {
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(self.inner, &pid) == .success else { return nil }
+        return pid
+    }
+
+    func raise() -> ()? {
+        guard AXUIElementPerformAction(self.inner, kAXRaiseAction as CFString) == .success else {
+            return nil
+        }
+        return ()
+    }
+
+    static func top() -> Wind? {
         guard let nsApp = NSWorkspace.shared.frontmostApplication else { return nil }
         let pid = nsApp.processIdentifier
         let app = AXUIElementCreateApplication(pid)
@@ -203,12 +249,12 @@ struct Window {
         var value: CFTypeRef?
         AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value)
         guard value != nil else { return nil }
-        return (value as! AXUIElement)
+        return Wind(value as! AXUIElement)
     }
 
-    static func getAll() -> [AXUIElement] {
+    static func all() -> [Wind] {
         var uniqPids = Set<pid_t>()
-        var wins = [AXUIElement]()
+        var wins = [Wind]()
 
         let apps = NSWorkspace.shared.runningApplications
             .lazy
@@ -228,9 +274,9 @@ struct Window {
             if app.bundleIdentifier == "com.apple.finder" {
                 // finder always has one dummy/hidden window
                 // therefore skip it
-                wins.append(contentsOf: appWins[1...])
+                wins.append(contentsOf: appWins[1...].lazy.map({ w in Wind.self(w) }))
             } else {
-                wins.append(contentsOf: appWins)
+                wins.append(contentsOf: appWins.lazy.map({ w in Wind.self(w) }))
             }
         }
 
