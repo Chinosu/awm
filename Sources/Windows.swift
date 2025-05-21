@@ -4,12 +4,13 @@ import Collections
 @available(macOS 15.4.0, *)
 actor WindowConductor {
     var windows: [Wind]
-    var history: [Wind]
+    var history: LinkedSet<Wind>
 
     var winObservers = [pid_t: AXObserver]()
     var launchAppObserver: (any NSObjectProtocol)? = nil
     var activateAppObserver: (any NSObjectProtocol)? = nil
     var terminateAppObserver: (any NSObjectProtocol)? = nil
+    var ignoreNextPush = false
 
     init() async {
         self.windows = Wind.all()
@@ -65,16 +66,22 @@ actor WindowConductor {
         }
     }
 
-    func pushHistory() {
+    func updateHistory() {
+        guard !ignoreNextPush else {
+            ignoreNextPush = false
+            return
+        }
+
         guard let win = Wind.top() else { return }
-        guard win == self.history.last! else { return }
-        // self.history.append(win)
+        self.history.append(win)
+        dbg()
     }
 
     func dbg() {
         print("=== dbg ===")
-        print("  \(self.windows.map(\.title))")
-        print("  \(self.history.map(\.title))")
+        print("  \(self.windows.map(\.pid!))")
+        dump(self.history)
+        print("")
     }
 
     func updateWindows() {
@@ -102,28 +109,26 @@ actor WindowConductor {
         // AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, size)
     }
 
-    func raise(index: Int) {
+    func doRaise(index: Int) {
         self.updateWindows()
         guard 0 <= index && index < self.windows.count else { return }
-        push(win: self.windows[index])
+        raise(win: self.windows[index])
 
         self.dbg()
     }
 
-    func raisePrev() {
+    func doRaisePrev() {
         self.updateWindows()
-        if self.history.count > 1 {
-            self.push(win: self.history[self.history.count - 2])
-        }
+        guard let end = self.history.end else { return }
+        let last = self.history.mem[end]
+        guard let penult = last.prev else { return }
+        let secondLast = self.history.mem[penult]
+        self.raise(win: secondLast.elem)
     }
 
-    private func push(win: Wind) {
-        print("(pus) [\(win.title!)] [\(self.history.last!.title!)]")
-
-        if win != self.history.last! {
-            self.history.append(win)
-        }
-
+    private func raise(win: Wind) {
+        self.history.append(win)
+        self.ignoreNextPush = true
         NSRunningApplication(processIdentifier: win.pid!)!.activate()
         win.raise()!
     }
@@ -136,7 +141,7 @@ actor WindowConductor {
                 { ob, win, noti, ptr in
                     // print("--> \(win)")
                     let wc = Unmanaged<WindowConductor>.fromOpaque(ptr!).takeUnretainedValue()
-                    Task { await wc.pushHistory() }
+                    Task { await wc.updateHistory() }
                 },
                 &o
             )
@@ -163,11 +168,11 @@ actor WindowConductor {
     }
 
     func onActivateApp(noti: Notification) {
-        let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
+        // let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
         // guard app.activationPolicy == .regular else { return }
 
         // print("=> \(app.localizedName!)")
-        self.pushHistory()
+        self.updateHistory()
     }
 
     func onTerminateApp(noti: Notification) {
@@ -191,7 +196,7 @@ actor WindowConductor {
 
 }
 
-struct Wind: Equatable {
+struct Wind: Equatable, Hashable {
     let inner: AXUIElement
 
     init(_ inner: AXUIElement) {

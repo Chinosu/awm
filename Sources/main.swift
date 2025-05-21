@@ -36,6 +36,8 @@ if #available(macOS 15.4.0, *) {
         ls.delete("second")
         ls.delete("fourth")
         p()
+        ls = ["hi", "hello", "bye"]
+        p()
 
         exit(0)
     }
