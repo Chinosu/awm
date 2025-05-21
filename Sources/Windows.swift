@@ -1,5 +1,6 @@
 import AppKit
 
+@available(macOS 15.4.0, *)
 actor WindowConductor {
     var wins: [AXUIElement]
 
@@ -21,52 +22,51 @@ actor WindowConductor {
 
         for app in NSWorkspace.shared.runningApplications {
             guard app.activationPolicy == .regular else { continue }
-            observe(pid: app.processIdentifier)
+            self.observe(pid: app.processIdentifier)
         }
         self.launchAppObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didLaunchApplicationNotification,
             object: nil,
             queue: .main,
-            using: onLaunchApp
+            using: self.onLaunchApp
         )
         self.activateAppObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main,
-            using: onActivateApp
+            using: self.onActivateApp
         )
         self.terminateAppObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didTerminateApplicationNotification,
             object: nil,
             queue: .main,
-            using: onTerminateApp
+            using: self.onTerminateApp
         )
     }
 
-    // // Swift 6.2
-    // nonisolated deinit {
-    //     if let observer = self.launchAppObserver {
-    //         NSWorkspace.shared.notificationCenter.removeObserver(
-    //             observer,
-    //             name: NSWorkspace.didLaunchApplicationNotification,
-    //             object: nil
-    //         )
-    //     }
-    //     if let observer = self.activateAppObserver {
-    //         NSWorkspace.shared.notificationCenter.removeObserver(
-    //             observer,
-    //             name: NSWorkspace.didActivateApplicationNotification,
-    //             object: nil
-    //         )
-    //     }
-    //     if let observer = self.terminateAppObserver {
-    //         NSWorkspace.shared.notificationCenter.removeObserver(
-    //             observer,
-    //             name: NSWorkspace.didTerminateApplicationNotification,
-    //             object: nil
-    //         )
-    //     }
-    // }
+    isolated deinit {
+        if let observer = self.launchAppObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(
+                observer,
+                name: NSWorkspace.didLaunchApplicationNotification,
+                object: nil
+            )
+        }
+        if let observer = self.activateAppObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(
+                observer,
+                name: NSWorkspace.didActivateApplicationNotification,
+                object: nil
+            )
+        }
+        if let observer = self.terminateAppObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(
+                observer,
+                name: NSWorkspace.didTerminateApplicationNotification,
+                object: nil
+            )
+        }
+    }
 
     func windowChange() {
         guard let win = Window.getTop() else { return }
