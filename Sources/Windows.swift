@@ -11,8 +11,9 @@ actor WindowConductor {
     var activateAppObserver: (any NSObjectProtocol)? = nil
     var terminateAppObserver: (any NSObjectProtocol)? = nil
 
-    var walkHistoryIndex = 1
-    var walkHistoryTimestamp = 0.0
+    var walk = false
+    var walkHistoryIndex = 2
+    var suppressUpdate = 0
 
     init() async {
         self.winds = []
@@ -70,6 +71,11 @@ actor WindowConductor {
     }
 
     func updateHistory() {
+        if self.suppressUpdate != 0 {
+            self.suppressUpdate -= 1
+            return
+        }
+
         guard let wind = Wind.top() else { return }
         // print("[!] topwin \(wind.pid, default:"nopid")")
 
@@ -106,32 +112,56 @@ actor WindowConductor {
     func doRaisePrev() {
         self.pruneWinds()
         guard self.history.count >= 2 else { return }
-        self.raise(win: self.history[self.history.count - 2])
+        if self.walk {
+            self.raise(win: self.history[self.history.count - 1])
+        } else {
+            self.raise(win: self.history[self.history.count - 2])
+        }
     }
 
     func doRaiseWalk() {
         self.pruneWinds()
-        guard self.history.count > 1 else { return }
+        guard self.history.count > 2 else { return }
 
-        print("[doRaiseWalk] \(self.walkHistoryIndex)")
-        for w in self.history {
-            print("- \(w.title!)")
-        }
-
-        // let now = Date().timeIntervalSince1970
-        // if now > 1 + self.walkHistoryTimestamp {
-        //     self.walkHistoryIndex = 1
+        // print("[doRaiseWalk] \(self.walkHistoryIndex)")
+        // for w in self.history {
+        //     print("- \(w.title!)")
         // }
-        // self.walkHistoryTimestamp = now
 
         self.raise(
-            win: self.history[self.history.count - 1 - self.walkHistoryIndex], updateHistory: false)
-        self.walkHistoryIndex = max(1, (self.walkHistoryIndex + 1) % self.history.count)
+            win: self.history[self.history.count - 1 - self.walkHistoryIndex],
+            updateHistory: false
+        )
+        self.walk = true
+        self.walkHistoryIndex = max(2, (self.walkHistoryIndex + 1) % self.history.count)
     }
 
-    private func raise(win: Wind, updateHistory: Bool = true) {
-        NSRunningApplication(processIdentifier: win.pid!)!.activate()
-        win.raise()!
+    private func raise(win wind: Wind, updateHistory: Bool = true) {
+        if updateHistory {
+            if self.walk, let top = Wind.top() {
+                self.walk = false
+                self.history.append(top)
+            }
+            self.history.append(wind)
+        }
+
+        let app = NSRunningApplication(processIdentifier: wind.pid!)!
+        if app != NSWorkspace.shared.frontmostApplication {
+            self.suppressUpdate += 2
+            app.activate()
+            wind.raise()!
+        } else {
+            var value: CFTypeRef?
+            AXUIElementCopyAttributeValue(
+                AXUIElementCreateApplication(app.processIdentifier),
+                kAXFocusedWindowAttribute as CFString,
+                &value
+            )
+            if wind.inner != value as! AXUIElement {
+                self.suppressUpdate += 1
+                wind.raise()!
+            }
+        }
     }
 
     func observe(pid: pid_t) {
