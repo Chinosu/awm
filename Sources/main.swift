@@ -38,6 +38,10 @@ if #available(macOS 15.4.0, *) {
         p()
         ls = ["hi", "hello", "bye"]
         p()
+        print("»\(ls[0])«")
+        print("»\(ls[1])«")
+        print("»\(ls[2])«")
+        print(">> \(ls.map(\.count))")
 
         exit(0)
     }

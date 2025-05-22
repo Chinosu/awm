@@ -6,6 +6,8 @@ struct LinkedSet<Element> where Element: Hashable {
     var mem: [Node] = []
     var free: Set<Int> = []
 
+    var count: Int { self.items.count }
+
     mutating func append(_ item: Element, deleteExisting: Bool = true) {
         if nil != self.items[item] {
             if !deleteExisting { return }

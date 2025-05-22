@@ -3,7 +3,7 @@ import Collections
 
 @available(macOS 15.4.0, *)
 actor WindowConductor {
-    var windows: [Wind]
+    var winds: LinkedSet<Wind>
     var history: LinkedSet<Wind>
 
     var winObservers = [pid_t: AXObserver]()
@@ -13,8 +13,9 @@ actor WindowConductor {
     var ignoreNextPush = false
 
     init() async {
-        self.windows = Wind.all()
-        guard !self.windows.isEmpty else { fatalError() }
+        self.winds = []
+        for wind in Wind.all() { self.winds.append(wind) }
+        guard self.winds.count != 0 else { fatalError() }
         guard let top = Wind.top() else { fatalError() }
         self.history = [top]
 
@@ -72,24 +73,37 @@ actor WindowConductor {
             return
         }
 
-        guard let win = Wind.top() else { return }
-        self.history.append(win)
+        guard let wind = Wind.top() else { return }
+        self.history.append(wind)
+        self.winds.append(wind, deleteExisting: false)
         dbg()
     }
 
     func dbg() {
         print("=== dbg ===")
-        print("  \(self.windows.map(\.pid!))")
+        print("  \(self.winds.map(\.pid!))")
         dump(self.history)
         print("")
     }
 
     func updateWindows() {
-        let new = Wind.all()
-        self.windows.removeAll(where: { !new.contains($0) })
-        for win in new {
-            if !self.windows.contains(win) {
-                self.windows.append(win)
+        // let new = Wind.all()
+        // self.winds.removeAll(where: { !new.contains($0) })
+        // for wind in new {
+        //     if !self.winds.contains(wind) {
+        //         self.winds.append(wind)
+        //     }
+        // }
+
+        for wind in self.winds {
+            if !wind.alive() {
+                self.winds.delete(wind)
+            }
+        }
+
+        for wind in self.history {
+            if !wind.alive() {
+                self.history.delete(wind)
             }
         }
 
@@ -111,8 +125,8 @@ actor WindowConductor {
 
     func doRaise(index: Int) {
         self.updateWindows()
-        guard 0 <= index && index < self.windows.count else { return }
-        raise(win: self.windows[index])
+        guard 0 <= index && index < self.winds.count else { return }
+        raise(win: self.winds[index])
 
         self.dbg()
     }
