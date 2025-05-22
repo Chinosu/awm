@@ -87,11 +87,14 @@ private func keyDispatch(
     case (.keyDown, kVK_ANSI_9, true, (false, true)):
         break
 
-    case (.keyDown, kVK_ANSI_Grave, false, (false, true)),
-        (.keyDown, kVK_Tab, false, (false, true)):
+    case (.keyDown, kVK_Tab, false, (false, true)):
         Task { await wc.doRaisePrev() }
-    case (.keyDown, kVK_ANSI_Grave, true, (false, true)),
-        (.keyDown, kVK_Tab, true, (false, true)):
+    case (.keyDown, kVK_Tab, true, (false, true)):
+        break
+
+    case (.keyDown, kVK_ANSI_Grave, false, (false, true)):
+        Task { await wc.doRaiseWalk() }
+    case (.keyDown, kVK_ANSI_Grave, true, (false, true)):
         break
 
     default:

@@ -10,7 +10,9 @@ actor WindowConductor {
     var launchAppObserver: (any NSObjectProtocol)? = nil
     var activateAppObserver: (any NSObjectProtocol)? = nil
     var terminateAppObserver: (any NSObjectProtocol)? = nil
-    var suppressHistory = false
+
+    var walkHistoryIndex = 1
+    var walkHistoryTimestamp = 0.0
 
     init() async {
         self.winds = []
@@ -68,22 +70,11 @@ actor WindowConductor {
     }
 
     func updateHistory() {
-        guard !suppressHistory else { return }
         guard let wind = Wind.top() else { return }
         // print("[!] topwin \(wind.pid, default:"nopid")")
 
         self.history.append(wind)
         self.winds.append(wind, deleteExisting: false)
-        dbg()
-    }
-
-    func dbg() {
-        // print()
-        // print("  winds")
-        // for w in self.winds { print("  - \(w)") }
-        // print("  hist")
-        // for w in self.history { print("  - \(w)") }
-        // print()
     }
 
     func pruneWinds() {
@@ -118,22 +109,29 @@ actor WindowConductor {
         self.raise(win: self.history[self.history.count - 2])
     }
 
-    private func raise(win: Wind) {
-        // When we raise a window from another app, we
-        // get two notifications:
-        // - one for the app change, and
-        // - one for the window change.
-        // The app change arrives first, and when it
-        // does, `Wind.top()` still returns the old
-        // window. So, we need to suppress calling
-        // `self.updateHistory()` once when we
-        // programmatically raise a window.
-        self.suppressHistory = true
+    func doRaiseWalk() {
+        self.pruneWinds()
+        guard self.history.count > 1 else { return }
+
+        print("[doRaiseWalk] \(self.walkHistoryIndex)")
+        for w in self.history {
+            print("- \(w.title!)")
+        }
+
+        // let now = Date().timeIntervalSince1970
+        // if now > 1 + self.walkHistoryTimestamp {
+        //     self.walkHistoryIndex = 1
+        // }
+        // self.walkHistoryTimestamp = now
+
+        self.raise(
+            win: self.history[self.history.count - 1 - self.walkHistoryIndex], updateHistory: false)
+        self.walkHistoryIndex = max(1, (self.walkHistoryIndex + 1) % self.history.count)
+    }
+
+    private func raise(win: Wind, updateHistory: Bool = true) {
         NSRunningApplication(processIdentifier: win.pid!)!.activate()
         win.raise()!
-        self.suppressHistory = false
-
-        self.history.append(win)
     }
 
     func observe(pid: pid_t) {
