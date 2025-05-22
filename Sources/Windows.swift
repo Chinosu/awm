@@ -119,11 +119,8 @@ actor WindowConductor {
 
     func doRaisePrev() {
         self.pruneWinds()
-        guard let end = self.history.end else { return }
-        let last = self.history.mem[end]
-        guard let penult = last.prev else { return }
-        let secondLast = self.history.mem[penult]
-        self.raise(win: secondLast.elem)
+        guard self.history.count >= 2 else { return }
+        self.raise(win: self.history[self.history.count - 2])
     }
 
     private func raise(win: Wind) {
