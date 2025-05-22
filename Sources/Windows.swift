@@ -68,12 +68,7 @@ actor WindowConductor {
     }
 
     func updateHistory() {
-        guard !suppressHistory else {
-            // print("[!] bypassing \(Wind.top(), default: "()")")
-            suppressHistory = false
-            return
-        }
-
+        guard !suppressHistory else { return }
         guard let wind = Wind.top() else { return }
         // print("[!] topwin \(wind.pid, default:"nopid")")
 
@@ -124,24 +119,21 @@ actor WindowConductor {
     }
 
     private func raise(win: Wind) {
-        // When we raise a window from another app, we get
-        // two notifications:
+        // When we raise a window from another app, we
+        // get two notifications:
         // - one for the app change, and
         // - one for the window change.
-        // The app change arrives first, and when it does,
-        // `Wind.top()` still returns the old window.
-        // So, we need to suppress calling `Wind.top()`
-        // once when we raise a window.
+        // The app change arrives first, and when it
+        // does, `Wind.top()` still returns the old
+        // window. So, we need to suppress calling
+        // `self.updateHistory()` once when we
+        // programmatically raise a window.
         self.suppressHistory = true
-
-        // When raising a window from the same app, we
-        // only get one notification which will get
-        // suppressed by `self.suppressHistory`. So,
-        // we need to manually add the window to history.
-        self.history.append(win)
-
         NSRunningApplication(processIdentifier: win.pid!)!.activate()
         win.raise()!
+        self.suppressHistory = false
+
+        self.history.append(win)
     }
 
     func observe(pid: pid_t) {
