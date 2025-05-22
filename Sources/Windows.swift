@@ -87,25 +87,8 @@ actor WindowConductor {
     }
 
     func updateWindows() {
-        // let new = Wind.all()
-        // self.winds.removeAll(where: { !new.contains($0) })
-        // for wind in new {
-        //     if !self.winds.contains(wind) {
-        //         self.winds.append(wind)
-        //     }
-        // }
-
-        for wind in self.winds {
-            if !wind.alive() {
-                self.winds.delete(wind)
-            }
-        }
-
-        for wind in self.history {
-            if !wind.alive() {
-                self.history.delete(wind)
-            }
-        }
+        self.winds.delete(where: { !$0.alive() })
+        self.history.delete(where: { !$0.alive() })
 
         // let app = AXUIElementCreateApplication(pid)
         // var value: CFTypeRef?

@@ -42,6 +42,9 @@ if #available(macOS 15.4.0, *) {
         print("»\(ls[1])«")
         print("»\(ls[2])«")
         print(">> \(ls.map(\.count))")
+        ls.append("yeti")
+        ls.delete(where: { $0.count & 1 == 0 })
+        p()
 
         exit(0)
     }

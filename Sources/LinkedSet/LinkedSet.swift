@@ -47,6 +47,31 @@ struct LinkedSet<Element> where Element: Hashable {
         self.dealloc(index: cur)
     }
 
+    mutating func delete(where: (Element) -> Bool) {
+        var cur = self.start
+        while let c = cur {
+            let node = self.mem[c]
+            if `where`(node.elem) {
+                if let prev = node.prev {
+                    self.mem[prev].next = node.next
+                } else {
+                    self.start = node.next
+                }
+
+                if let next = node.next {
+                    self.mem[next].prev = node.prev
+                } else {
+                    self.end = node.prev
+                }
+
+                self.items.removeValue(forKey: node.elem)
+                self.dealloc(index: c)
+            }
+
+            cur = node.next
+        }
+    }
+
     mutating func alloc(elem: Element, prev: Int?, next: Int?) -> Int {
         if let i = self.free.first {
             self.free.remove(i)
