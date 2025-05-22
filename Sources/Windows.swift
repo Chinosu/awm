@@ -10,7 +10,7 @@ actor WindowConductor {
     var launchAppObserver: (any NSObjectProtocol)? = nil
     var activateAppObserver: (any NSObjectProtocol)? = nil
     var terminateAppObserver: (any NSObjectProtocol)? = nil
-    var ignoreNextPush = false
+    var suppressHistory = false
 
     init() async {
         self.winds = []
@@ -68,25 +68,30 @@ actor WindowConductor {
     }
 
     func updateHistory() {
-        guard !ignoreNextPush else {
-            ignoreNextPush = false
+        guard !suppressHistory else {
+            // print("[!] bypassing \(Wind.top(), default: "()")")
+            suppressHistory = false
             return
         }
 
         guard let wind = Wind.top() else { return }
+        // print("[!] topwin \(wind.pid, default:"nopid")")
+
         self.history.append(wind)
         self.winds.append(wind, deleteExisting: false)
         dbg()
     }
 
     func dbg() {
-        print("=== dbg ===")
-        print("  \(self.winds.map(\.pid!))")
-        dump(self.history)
-        print("")
+        // print()
+        // print("  winds")
+        // for w in self.winds { print("  - \(w)") }
+        // print("  hist")
+        // for w in self.history { print("  - \(w)") }
+        // print()
     }
 
-    func updateWindows() {
+    func pruneWinds() {
         self.winds.delete(where: { !$0.alive() })
         self.history.delete(where: { !$0.alive() })
 
@@ -107,15 +112,13 @@ actor WindowConductor {
     }
 
     func doRaise(index: Int) {
-        self.updateWindows()
+        self.pruneWinds()
         guard 0 <= index && index < self.winds.count else { return }
         raise(win: self.winds[index])
-
-        self.dbg()
     }
 
     func doRaisePrev() {
-        self.updateWindows()
+        self.pruneWinds()
         guard let end = self.history.end else { return }
         let last = self.history.mem[end]
         guard let penult = last.prev else { return }
@@ -124,8 +127,22 @@ actor WindowConductor {
     }
 
     private func raise(win: Wind) {
+        // When we raise a window from another app, we get
+        // two notifications:
+        // - one for the app change, and
+        // - one for the window change.
+        // The app change arrives first, and when it does,
+        // `Wind.top()` still returns the old window.
+        // So, we need to suppress calling `Wind.top()`
+        // once when we raise a window.
+        self.suppressHistory = true
+
+        // When raising a window from the same app, we
+        // only get one notification which will get
+        // suppressed by `self.suppressHistory`. So,
+        // we need to manually add the window to history.
         self.history.append(win)
-        self.ignoreNextPush = true
+
         NSRunningApplication(processIdentifier: win.pid!)!.activate()
         win.raise()!
     }
@@ -160,23 +177,22 @@ actor WindowConductor {
         let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
         guard app.activationPolicy == .regular else { return }
 
-        print("[*] \(app.localizedName!)")
+        // print("[*] \(app.localizedName!)")
         self.observe(pid: app.processIdentifier)
     }
 
     func onActivateApp(noti: Notification) {
-        // let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
-        // guard app.activationPolicy == .regular else { return }
-
-        // print("=> \(app.localizedName!)")
-        self.updateHistory()
+        // print(
+        //     "=> \((noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication).processIdentifier)"
+        // )
+        Task { self.updateHistory() }
     }
 
     func onTerminateApp(noti: Notification) {
         let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
         guard app.activationPolicy == .regular else { return }
 
-        print("[ ] \(app.localizedName!)")
+        // print("[ ] \(app.localizedName!)")
         let observer = self.winObservers[app.processIdentifier]!
         AXObserverRemoveNotification(
             observer,
