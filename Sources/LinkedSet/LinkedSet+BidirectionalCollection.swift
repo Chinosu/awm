@@ -26,7 +26,6 @@ extension LinkedSet: BidirectionalCollection {
 
     subscript(position: Index) -> Element {
         guard let i = position.i else { preconditionFailure() }
-        precondition(i < self.count)
         return self.mem[i].elem
     }
 

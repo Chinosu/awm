@@ -74,12 +74,13 @@ actor WindowConductor {
 
     func updateHistory() {
         if self.suppressUpdate != 0 {
+            // print("[!] suppress \(suppressUpdate)")
             self.suppressUpdate -= 1
             return
         }
 
         guard let wind = Wind.top() else { return }
-        // print("[!] topwin \(wind.pid, default:"nopid")")
+        // print("[!] topwin \(wind.pid(), default:"nopid")")
 
         self.history.append(wind)
         self.winds.append(wind, deleteExisting: false)
@@ -180,7 +181,7 @@ actor WindowConductor {
             app.activate()
             wind.raise()
         } else {
-            if !wind.focused() {
+            if Wind.top() != wind {
                 self.suppressUpdate += 1
                 wind.raise()
             }
