@@ -14,6 +14,7 @@ actor WindowConductor {
     var suppressUpdate = 0
     var catalog = [(Wind, CGPoint, CGSize)]()
     var inCatalog: Bool { !catalog.isEmpty }
+    var catalogRearrange = false
 
     init() async {
         for wind in Wind.all() {
@@ -90,11 +91,11 @@ actor WindowConductor {
         self.catalog.removeAll(where: { !$0.0.alive() })
     }
 
-    func doRaise(index: Int) {
+    func doRaise(index: Int) async {
         self.pruneWinds()
 
         guard !self.inCatalog else {
-            self.undoHistoryCatalog()
+            await self.undoAnyCatalog()
             guard 0 <= index && index < self.history.count else { return }
             self.raise(win: self.history[index])
             return
@@ -113,31 +114,58 @@ actor WindowConductor {
         self.raise(win: self.history[self.history.count - 2])
     }
 
-    func doHistoryCatalog() {
+    func doHistCatalog() async {
         self.pruneWinds()
         guard self.winds.count != 0 else { return }
 
         assert(self.history.count == self.winds.count)
 
-        if !self.inCatalog {
-            for (i, wind) in self.history.enumerated() {
-                self.catalog.append((wind, wind.position(), wind.size()))
-                wind.position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
-                wind.size(set: CGSize(width: 1000, height: 1000))
-            }
-        } else {
-            self.undoHistoryCatalog()
+        guard !self.inCatalog else { return await self.undoAnyCatalog() }
+
+        for (i, wind) in self.history.enumerated() {
+            self.catalog.append((wind, wind.position(), wind.size()))
+            wind.position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
+            wind.size(set: CGSize(width: 1000, height: 1000))
         }
     }
 
-    func undoHistoryCatalog() {
+    func doWindsCatalog() async {
+        self.pruneWinds()
+        guard self.winds.count != 0 else { return }
+
+        assert(self.history.count == self.winds.count)
+
+        guard !self.inCatalog else { return await self.undoAnyCatalog() }
+
+        for wind in self.history { self.catalog.append((wind, wind.position(), wind.size())) }
+        for (i, wind) in self.winds.enumerated() {
+            wind.position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
+            wind.size(set: CGSize(width: 1000, height: 1000))
+        }
+        for wind in self.winds {
+            self.raise(win: wind, updateHistory: false)
+            try! await Task.sleep(nanoseconds: 15_000_000)
+        }
+
+        self.catalogRearrange = true
+    }
+
+    func undoAnyCatalog() async {
         guard self.inCatalog else { return }
 
-        assert(zip(self.catalog, self.history).allSatisfy({ $0.0.0 == $0.1 }))
         for (wind, position, size) in self.catalog {
             wind.position(set: position)
             wind.size(set: size)
         }
+
+        if self.catalogRearrange {
+            for (wind, _, _) in catalog {
+                self.raise(win: wind, updateHistory: false)
+                try! await Task.sleep(for: .milliseconds(15))
+            }
+            self.catalogRearrange = false
+        }
+
         self.catalog.removeAll(keepingCapacity: true)
     }
 
