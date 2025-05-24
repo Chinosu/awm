@@ -90,9 +90,16 @@ actor WindowConductor {
         self.history.delete(where: { !$0.alive() })
     }
 
-    func doRaise(index: Int) async {
-        if !self.catalog.isEmpty { await self.undoCatalog() }
+    func doRaise(index: Int) {
         self.pruneWinds()
+
+        guard self.catalog.isEmpty else {
+            self.undoHistoryCatalog()
+            guard 0 <= index && index < self.history.count else { return }
+            self.raise(win: self.history[index])
+            return
+        }
+
         guard 0 <= index && index < self.winds.count else { return }
         self.raise(win: self.winds[index])
     }
@@ -120,7 +127,47 @@ actor WindowConductor {
         self.walkHistoryIndex = max(2, (self.walkHistoryIndex + 1) % self.history.count)
     }
 
-    func doCatalog() async {
+    // func doCatalog() async {
+    //     self.pruneWinds()
+    //     guard self.winds.count != 0 else { return }
+
+    //     assert(self.history.count == self.winds.count)
+
+    //     if self.catalog.isEmpty {
+    //         var i = 1
+    //         for wind in self.history {
+    //             self.catalog.append((wind, wind.position(), wind.size()))
+    //         }
+    //         for wind in self.winds {
+    //             wind.position(set: CGPoint(x: (i - 1) * 75, y: i * 50))
+    //             wind.size(set: CGSize(width: 1000, height: 1000))
+    //             i += 1
+    //         }
+    //         for wind in self.winds {
+    //             self.raise(win: wind, updateHistory: false)
+    //             try! await Task.sleep(nanoseconds: 15_000_000)
+    //         }
+    //     } else {
+    //         await self.undoCatalog()
+    //     }
+    // }
+    // func undoCatalog() async {
+    //     guard !self.catalog.isEmpty else { return }
+
+    //     let catalog = self.catalog.lazy.filter({ $0.0.alive() })
+    //     for (wind, position, size) in catalog {
+    //         wind.position(set: position)
+    //         wind.size(set: size)
+    //     }
+    //     for (wind, _, _) in catalog {
+    //         self.raise(win: wind, updateHistory: false)
+    //         try! await Task.sleep(nanoseconds: 15_000_000)
+    //     }
+    //     self.raise(win: self.history.last!, updateHistory: false)
+    //     self.catalog.removeAll(keepingCapacity: true)
+    // }
+
+    func doHistoryCatalog() {
         self.pruneWinds()
         guard self.winds.count != 0 else { return }
 
@@ -130,19 +177,26 @@ actor WindowConductor {
             var i = 1
             for wind in self.history {
                 self.catalog.append((wind, wind.position(), wind.size()))
-            }
-            for wind in self.winds {
                 wind.position(set: CGPoint(x: (i - 1) * 75, y: i * 50))
                 wind.size(set: CGSize(width: 1000, height: 1000))
                 i += 1
             }
-            for wind in self.winds {
-                self.raise(win: wind, updateHistory: false)
-                try! await Task.sleep(nanoseconds: 15_000_000)
-            }
         } else {
-            await self.undoCatalog()
+            self.undoHistoryCatalog()
         }
+    }
+
+    func undoHistoryCatalog() {
+        guard !self.catalog.isEmpty else { return }
+
+        assert(
+            zip(self.catalog.lazy.filter({ $0.0.alive() }), self.history)
+                .allSatisfy({ $0.0.0 == $0.1 }))
+        for (wind, position, size) in self.catalog.lazy.filter({ $0.0.alive() }) {
+            wind.position(set: position)
+            wind.size(set: size)
+        }
+        self.catalog.removeAll(keepingCapacity: true)
     }
 
     func raise(win wind: Wind, updateHistory: Bool = true) {
@@ -165,24 +219,6 @@ actor WindowConductor {
                 wind.raise()
             }
         }
-    }
-
-    func undoCatalog() async {
-        guard !self.catalog.isEmpty else { return }
-
-        for (wind, position, size) in self.catalog {
-            if !wind.alive() { continue }
-            wind.position(set: position)
-            wind.size(set: size)
-        }
-        for (wind, _, _) in self.catalog {
-            if !wind.alive() { continue }
-            self.raise(win: wind, updateHistory: false)
-            try! await Task.sleep(nanoseconds: 15_000_000)
-        }
-
-        self.catalog.removeAll(keepingCapacity: true)
-        self.raise(win: self.history.last!, updateHistory: false)
     }
 
     func observe(pid: pid_t) {

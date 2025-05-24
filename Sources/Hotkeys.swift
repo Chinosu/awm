@@ -79,7 +79,8 @@ private func keyDispatch(
     case (.keyDown, kVK_ANSI_Grave, false, (false, true, false)): Task { await wc.doWalk() }
     case (.keyDown, kVK_ANSI_Grave, true, (false, true, false)): break
 
-    case (.keyDown, kVK_Escape, false, (false, true, false)): Task { await wc.doCatalog() }
+    // case (.keyDown, kVK_Escape, false, (false, true, false)): Task { await wc.doCatalog() }
+    case (.keyDown, kVK_Escape, false, (false, true, false)): Task { await wc.doHistoryCatalog() }
     case (.keyDown, kVK_Escape, true, (false, true, false)): break
 
     default: return Unmanaged.passUnretained(event)
