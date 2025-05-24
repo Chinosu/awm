@@ -28,6 +28,26 @@ struct LinkedSet<Element> where Element: Hashable {
         self.items[item] = cur
     }
 
+    mutating func prepend(_ item: Element, deleteExisting: Bool = true) {
+        if nil != self.items[item] {
+            if !deleteExisting { return }
+            self.delete(item)
+        }
+
+        if self.items.isEmpty {
+            let cur = self.alloc(elem: item, prev: nil, next: nil)
+            self.start = cur
+            self.end = cur
+            self.items[item] = cur
+            return
+        }
+
+        let cur = self.alloc(elem: item, prev: nil, next: self.start)
+        self.mem[self.start!].prev = cur
+        self.start = cur
+        self.items[item] = cur
+    }
+
     mutating func delete(_ item: Element) {
         guard let cur = self.items[item] else { return }
 

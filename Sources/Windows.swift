@@ -13,6 +13,7 @@ actor WindowConductor {
 
     var suppressUpdate = 0
     var catalog = [(Wind, CGPoint, CGSize)]()
+    var inCatalog: Bool { !catalog.isEmpty }
 
     init() async {
         for wind in Wind.all() {
@@ -72,6 +73,7 @@ actor WindowConductor {
     }
 
     func updateHistory() {
+        // todo click in catalog
         if self.suppressUpdate != 0 {
             self.suppressUpdate -= 1
             return
@@ -85,12 +87,13 @@ actor WindowConductor {
     func pruneWinds() {
         self.winds.delete(where: { !$0.alive() })
         self.history.delete(where: { !$0.alive() })
+        self.catalog.removeAll(where: { !$0.0.alive() })
     }
 
     func doRaise(index: Int) {
         self.pruneWinds()
 
-        guard self.catalog.isEmpty else {
+        guard !self.inCatalog else {
             self.undoHistoryCatalog()
             guard 0 <= index && index < self.history.count else { return }
             self.raise(win: self.history[index])
@@ -102,8 +105,10 @@ actor WindowConductor {
     }
 
     func doPrev() {
-        guard self.catalog.isEmpty else { return }
         self.pruneWinds()
+
+        guard !self.inCatalog else { return }
+
         guard self.history.count >= 2 else { return }
         self.raise(win: self.history[self.history.count - 2])
     }
@@ -114,13 +119,11 @@ actor WindowConductor {
 
         assert(self.history.count == self.winds.count)
 
-        if self.catalog.isEmpty {
-            var i = 1
-            for wind in self.history {
+        if !self.inCatalog {
+            for (i, wind) in self.history.enumerated() {
                 self.catalog.append((wind, wind.position(), wind.size()))
-                wind.position(set: CGPoint(x: (i - 1) * 75, y: i * 50))
+                wind.position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
                 wind.size(set: CGSize(width: 1000, height: 1000))
-                i += 1
             }
         } else {
             self.undoHistoryCatalog()
@@ -128,12 +131,10 @@ actor WindowConductor {
     }
 
     func undoHistoryCatalog() {
-        guard !self.catalog.isEmpty else { return }
+        guard self.inCatalog else { return }
 
-        assert(
-            zip(self.catalog.lazy.filter({ $0.0.alive() }), self.history)
-                .allSatisfy({ $0.0.0 == $0.1 }))
-        for (wind, position, size) in self.catalog.lazy.filter({ $0.0.alive() }) {
+        assert(zip(self.catalog, self.history).allSatisfy({ $0.0.0 == $0.1 }))
+        for (wind, position, size) in self.catalog {
             wind.position(set: position)
             wind.size(set: size)
         }

@@ -45,6 +45,8 @@ if #available(macOS 15.4.0, *) {
         ls.append("yeti")
         ls.delete(where: { $0.count & 1 == 0 })
         p()
+        ls.prepend("frontmost")
+        p()
 
         exit(0)
     }
