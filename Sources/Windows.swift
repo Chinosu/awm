@@ -98,7 +98,7 @@ actor WindowConductor {
     func doRaise(index: Int) {
         self.pruneWinds()
         guard 0 <= index && index < self.winds.count else { return }
-        raise(win: self.winds[index])
+        self.raise(win: self.winds[index])
     }
 
     func doPrev() {
@@ -132,10 +132,14 @@ actor WindowConductor {
         self.pruneWinds()
         guard self.winds.count != 0 else { return }
 
+        assert(self.history.count == self.winds.count)
+
         if self.preCatalog.isEmpty {
             var i = 1
-            for wind in self.winds {
+            for wind in self.history {
                 self.preCatalog.append((wind, wind.position(), wind.size()))
+            }
+            for wind in self.winds {
                 wind.position(set: CGPoint(x: (i - 1) * 75, y: i * 50))
                 wind.size(set: CGSize(width: 1000, height: 1000))
 
@@ -149,10 +153,12 @@ actor WindowConductor {
                 if !wind.alive() { continue }
                 wind.position(set: position)
                 wind.size(set: size)
+
+                try! await Task.sleep(nanoseconds: 20_000_000)
+                self.raise(win: wind, updateHistory: false)
             }
 
             self.preCatalog.removeAll(keepingCapacity: true)
-            self.raise(win: self.history.last!, updateHistory: false)
         }
     }
 
