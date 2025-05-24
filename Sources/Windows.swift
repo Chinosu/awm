@@ -19,10 +19,14 @@ actor WindowConductor {
 
     init() async {
         self.winds = []
-        for wind in Wind.all() { self.winds.append(wind) }
+        self.history = []
+        for wind in Wind.all() {
+            self.winds.append(wind)
+            self.history.append(wind)
+        }
         guard self.winds.count != 0 else { fatalError() }
         guard let top = Wind.top() else { fatalError() }
-        self.history = [top]
+        self.history.append(top)
 
         for app in NSWorkspace.shared.runningApplications {
             guard app.activationPolicy == .regular else { continue }
@@ -89,21 +93,6 @@ actor WindowConductor {
     func pruneWinds() {
         self.winds.delete(where: { !$0.alive() })
         self.history.delete(where: { !$0.alive() })
-
-        // let app = AXUIElementCreateApplication(pid)
-        // var value: CFTypeRef?
-        // AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
-        // let windows = value as! CFArray
-        // print("found \(CFArrayGetCount(windows)) terminals")
-        // let window = unsafeBitCast(CFArrayGetValueAtIndex(windows, 0), to: AXUIElement.self)
-
-        // var newPos = CGPoint(x: 100, y: 100)
-        // let pos = AXValueCreate(.cgPoint, &newPos)!
-        // AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, pos)
-
-        // var newSize = CGSize(width: 100, height: 100)
-        // let size = AXValueCreate(.cgPoint, &newSize)!
-        // AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, size)
     }
 
     func doRaise(index: Int) {
@@ -157,6 +146,7 @@ actor WindowConductor {
             }
         } else {
             for (wind, position, size) in self.preCatalog {
+                if !wind.alive() { continue }
                 wind.position(set: position)
                 wind.size(set: size)
             }
@@ -189,8 +179,8 @@ actor WindowConductor {
     }
 
     func observe(pid: pid_t) {
-        let observer = {
-            var o: AXObserver?
+        var observer: AXObserver?
+        check(
             AXObserverCreate(
                 pid,
                 { ob, win, noti, ptr in
@@ -198,18 +188,15 @@ actor WindowConductor {
                     let wc = Unmanaged<WindowConductor>.fromOpaque(ptr!).takeUnretainedValue()
                     Task { await wc.updateHistory() }
                 },
-                &o
-            )
-            return o!
-        }()
+                &observer
+            ))
 
-        AXObserverAddNotification(
-            observer,
-            AXUIElementCreateApplication(pid),
-            kAXMainWindowChangedNotification as CFString,
-            Unmanaged.passUnretained(self).toOpaque()
-        )
-        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
+        check(
+            AXObserverAddNotification(
+                observer!, AXUIElementCreateApplication(pid),
+                kAXMainWindowChangedNotification as CFString,
+                Unmanaged.passUnretained(self).toOpaque()))
+        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer!), .defaultMode)
 
         self.winObservers[pid] = observer
     }
@@ -235,19 +222,21 @@ actor WindowConductor {
 
         // print("[ ] \(app.localizedName!)")
         let observer = self.winObservers[app.processIdentifier]!
-        AXObserverRemoveNotification(
-            observer,
-            AXUIElementCreateApplication(app.processIdentifier),
-            kAXFocusedWindowChangedNotification as CFString
-        )
+        // // error: cannot remove observer from quitted app
+        // check(
+        //     AXObserverRemoveNotification(
+        //         observer, AXUIElementCreateApplication(app.processIdentifier),
+        //         kAXFocusedWindowChangedNotification as CFString))
         CFRunLoopRemoveSource(
             CFRunLoopGetMain(),
             AXObserverGetRunLoopSource(observer),
             .defaultMode
         )
-        self.winObservers.removeValue(forKey: app.processIdentifier)
+        assert(
+            !CFRunLoopContainsSource(
+                CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode))
+        check(self.winObservers.removeValue(forKey: app.processIdentifier))
     }
-
 }
 
 struct Wind: Equatable, Hashable {
@@ -259,85 +248,76 @@ struct Wind: Equatable, Hashable {
 
     func keys() -> [String] {
         var value: CFArray?
-        AXUIElementCopyAttributeNames(self.inner, &value)
+        check(AXUIElementCopyAttributeNames(self.inner, &value))
         return value as! [String]
     }
 
     func alive() -> Bool {
-        var value: CFTypeRef?
-        return .success
-            == AXUIElementCopyAttributeValue(self.inner, kAXMainAttribute as CFString, &value)
+        var value: AnyObject?
+        let result = AXUIElementCopyAttributeValue(self.inner, kAXMainAttribute as CFString, &value)
+        return result == .success
     }
 
     func focused() -> Bool {
-        var value: CFTypeRef?
-        guard
-            AXUIElementCopyAttributeValue(self.inner, kAXFocusedAttribute as CFString, &value)
-                == .success
-        else { preconditionFailure() }
-        return (value as! Bool)
+        var value: AnyObject?
+        check(AXUIElementCopyAttributeValue(self.inner, kAXFocusedAttribute as CFString, &value))
+        return value as! Bool
     }
 
     func title() -> String {
-        var value: CFTypeRef?
-        guard
-            AXUIElementCopyAttributeValue(self.inner, kAXTitleAttribute as CFString, &value)
-                == .success
-        else { preconditionFailure() }
+        var value: AnyObject?
+        check(AXUIElementCopyAttributeValue(self.inner, kAXTitleAttribute as CFString, &value))
         return value as! String
     }
 
     func pid() -> pid_t {
         var pid: pid_t = 0
-        guard AXUIElementGetPid(self.inner, &pid) == .success else { preconditionFailure() }
+        check(AXUIElementGetPid(self.inner, &pid))
         return pid
     }
 
     func position() -> CGPoint {
-        var value: CFTypeRef?
-        AXUIElementCopyAttributeValue(self.inner, kAXPositionAttribute as CFString, &value)
-
+        var value: AnyObject?
+        check(AXUIElementCopyAttributeValue(self.inner, kAXPositionAttribute as CFString, &value))
         var point = CGPoint()
-        AXValueGetValue(value as! AXValue, .cgPoint, &point)
+        check(AXValueGetValue(value as! AXValue, .cgPoint, &point))
         return point
     }
 
     func position(set newValue: CGPoint) {
         var point = newValue
-        let value = AXValueCreate(.cgPoint, &point)!
-        AXUIElementSetAttributeValue(self.inner, kAXPositionAttribute as CFString, value)
+        let value = AXValueCreate(.cgPoint, &point)
+        check(AXUIElementSetAttributeValue(self.inner, kAXPositionAttribute as CFString, value!))
     }
 
     func size() -> CGSize {
-        var value: CFTypeRef?
-        AXUIElementCopyAttributeValue(self.inner, kAXSizeAttribute as CFString, &value)
-
+        var value: AnyObject?
+        check(AXUIElementCopyAttributeValue(self.inner, kAXSizeAttribute as CFString, &value))
         var size = CGSize()
-        AXValueGetValue(value as! AXValue, .cgSize, &size)
+        check(AXValueGetValue(value as! AXValue, .cgSize, &size))
         return size
     }
 
     func size(set newValue: CGSize) {
         var size = newValue
-        let value = AXValueCreate(.cgSize, &size)!
-        AXUIElementSetAttributeValue(self.inner, kAXSizeAttribute as CFString, value)
+        let value = AXValueCreate(.cgSize, &size)
+        check(AXUIElementSetAttributeValue(self.inner, kAXSizeAttribute as CFString, value!))
     }
 
     func raise() {
-        guard AXUIElementPerformAction(self.inner, kAXRaiseAction as CFString) == .success else {
-            preconditionFailure()
-        }
+        check(AXUIElementPerformAction(self.inner, kAXRaiseAction as CFString))
     }
 
     static func top() -> Wind? {
         guard let nsApp = NSWorkspace.shared.frontmostApplication else { return nil }
-        let pid = nsApp.processIdentifier
-        let app = AXUIElementCreateApplication(pid)
 
-        var value: CFTypeRef?
-        AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value)
-        guard value != nil else { return nil }
-        return Wind(value as! AXUIElement)
+        var value: AnyObject?
+        AXUIElementCopyAttributeValue(
+            AXUIElementCreateApplication(nsApp.processIdentifier),
+            kAXFocusedWindowAttribute as CFString, &value
+        )
+
+        return if value != nil { Wind(value as! AXUIElement) } else { nil }
     }
 
     static func all() -> [Wind] {
@@ -348,19 +328,31 @@ struct Wind: Equatable, Hashable {
         for app in apps {
             let axApp = AXUIElementCreateApplication(app.processIdentifier)
 
-            var value: CFTypeRef?
-            AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value)
-            guard let winds = value as? [AXUIElement] else { continue }
+            var value: AnyObject?
+            check(AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value))
+            let winds = value as! [AXUIElement]
 
             if app.bundleIdentifier == "com.apple.finder" {
                 // finder always has one dummy/hidden window
                 // therefore skip it
-                wins.append(contentsOf: winds[1...].lazy.map({ w in Wind.self(w) }))
+                wins.append(contentsOf: winds[1...].lazy.map({ w in Wind(w) }))
             } else {
-                wins.append(contentsOf: winds.lazy.map({ w in Wind.self(w) }))
+                wins.append(contentsOf: winds.lazy.map({ w in Wind(w) }))
             }
         }
 
         return wins
     }
+}
+
+@inlinable func check(_ value: AXError) {
+    assert(value == .success, "\(value.rawValue)")
+}
+
+@inlinable func check(_ value: Bool) {
+    assert(value)
+}
+
+@inlinable func check(_ value: Any?) {
+    assert(value != nil)
 }
