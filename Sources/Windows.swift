@@ -3,13 +3,13 @@ import Collections
 
 @available(macOS 15.4.0, *)
 actor WindowConductor {
-    var winds: LinkedSet<Wind>
-    var history: LinkedSet<Wind>
+    var winds: LinkedSet<Wind> = []
+    var history: LinkedSet<Wind> = []
 
     var winObservers = [pid_t: AXObserver]()
-    var launchAppObserver: (any NSObjectProtocol)? = nil
-    var activateAppObserver: (any NSObjectProtocol)? = nil
-    var terminateAppObserver: (any NSObjectProtocol)? = nil
+    var launchAppObserver: (any NSObjectProtocol)?
+    var activateAppObserver: (any NSObjectProtocol)?
+    var terminateAppObserver: (any NSObjectProtocol)?
 
     var walk = false
     var walkHistoryIndex = 2
@@ -17,9 +17,13 @@ actor WindowConductor {
 
     var catalog = [(Wind, CGPoint, CGSize)]()
 
+    var watch = false
+    var cont: AsyncStream<()>.Continuation!
+    var stream: AsyncStream<()>!
+
     init() async {
-        self.winds = []
-        self.history = []
+        self.stream = AsyncStream { self.cont = $0 }
+
         for wind in Wind.all() {
             self.winds.append(wind)
             self.history.append(wind)
@@ -77,6 +81,7 @@ actor WindowConductor {
     }
 
     func updateHistory() {
+        if self.watch { self.cont.yield(()) }
         if self.suppressUpdate != 0 {
             // print("[!] suppress \(suppressUpdate)")
             self.suppressUpdate -= 1
@@ -145,18 +150,21 @@ actor WindowConductor {
             for wind in self.winds {
                 wind.position(set: CGPoint(x: (i - 1) * 75, y: i * 50))
                 wind.size(set: CGSize(width: 1000, height: 1000))
-
-                self.raise(win: wind, updateHistory: false)
-                try! await Task.sleep(nanoseconds: 20_000_000)
-
                 i += 1
+            }
+            for wind in self.winds {
+                self.watch = true
+                for _ in 0..<self.raise(win: wind, updateHistory: false) {
+                    for await _ in self.stream { break }
+                }
+                self.watch = false
             }
         } else {
             await self.undoCatalog()
         }
     }
 
-    func raise(win wind: Wind, updateHistory: Bool = true) {
+    func raise(win wind: Wind, updateHistory: Bool = true) -> Int {
         if updateHistory {
             if self.walk, let top = Wind.top() {
                 self.walk = false
@@ -170,12 +178,15 @@ actor WindowConductor {
             self.suppressUpdate += 2
             app.activate()
             wind.raise()
+            return 2
         } else {
             if Wind.top() != wind {
                 self.suppressUpdate += 1
                 wind.raise()
+                return 1
             }
         }
+        return 0
     }
 
     func undoCatalog() async {
@@ -187,7 +198,7 @@ actor WindowConductor {
             wind.size(set: size)
 
             self.raise(win: wind, updateHistory: false)
-            try! await Task.sleep(nanoseconds: 20_000_000)
+            // try! await Task.sleep(nanoseconds: 20_000_000)
         }
 
         self.catalog.removeAll(keepingCapacity: true)
