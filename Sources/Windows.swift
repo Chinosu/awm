@@ -14,7 +14,7 @@ actor WindowConductor {
     var suppressUpdate = 0
     var catalog = [(Wind, CGPoint, CGSize)]()
     var inCatalog: Bool { !catalog.isEmpty }
-    var catalogRearrange = false
+    var catalogRearranged = false
 
     init() async {
         for wind in Wind.all() {
@@ -74,7 +74,6 @@ actor WindowConductor {
     }
 
     func updateHistory() {
-        // todo click in catalog
         if self.suppressUpdate != 0 {
             self.suppressUpdate -= 1
             return
@@ -95,9 +94,10 @@ actor WindowConductor {
         self.pruneWinds()
 
         guard !self.inCatalog else {
-            await self.undoAnyCatalog()
-            guard 0 <= index && index < self.history.count else { return }
-            self.raise(win: self.history[index])
+            let order = if self.catalogRearranged { self.winds } else { self.history }
+            guard 0 <= index && index < order.count else { return }
+            await self.undoCatalog()
+            self.raise(win: order[index])
             return
         }
 
@@ -120,7 +120,7 @@ actor WindowConductor {
 
         assert(self.history.count == self.winds.count)
 
-        guard !self.inCatalog else { return await self.undoAnyCatalog() }
+        guard !self.inCatalog else { return await self.undoCatalog() }
 
         for (i, wind) in self.history.enumerated() {
             self.catalog.append((wind, wind.position(), wind.size()))
@@ -135,7 +135,7 @@ actor WindowConductor {
 
         assert(self.history.count == self.winds.count)
 
-        guard !self.inCatalog else { return await self.undoAnyCatalog() }
+        guard !self.inCatalog else { return await self.undoCatalog() }
 
         for wind in self.history { self.catalog.append((wind, wind.position(), wind.size())) }
         for (i, wind) in self.winds.enumerated() {
@@ -147,26 +147,32 @@ actor WindowConductor {
             try! await Task.sleep(nanoseconds: 15_000_000)
         }
 
-        self.catalogRearrange = true
+        self.catalogRearranged = true
     }
 
-    func undoAnyCatalog() async {
+    func undoCatalog() async {
         guard self.inCatalog else { return }
+        guard let top = Wind.top() else { return }
 
         for (wind, position, size) in self.catalog {
             wind.position(set: position)
             wind.size(set: size)
         }
 
-        if self.catalogRearrange {
+        if self.catalogRearranged {
             for (wind, _, _) in catalog {
                 self.raise(win: wind, updateHistory: false)
                 try! await Task.sleep(for: .milliseconds(15))
             }
-            self.catalogRearrange = false
         }
 
+        // might remove
+        let operand = if self.catalogRearranged { self.winds.last } else { self.history.last }
+        if top != operand { self.raise(win: top) }
+
         self.catalog.removeAll(keepingCapacity: true)
+
+        self.catalogRearranged = false
     }
 
     func raise(win wind: Wind, updateHistory: Bool = true) {
