@@ -76,14 +76,11 @@ actor WindowConductor {
 
     func updateHistory() {
         if self.suppressUpdate != 0 {
-            // print("[!] suppress \(suppressUpdate)")
             self.suppressUpdate -= 1
             return
         }
 
         guard let wind = Wind.top() else { return }
-        // print("[!] topwin \(wind.pid(), default:"nopid")")
-
         self.history.append(wind)
         self.winds.append(wind, deleteExisting: false)
     }
@@ -115,12 +112,6 @@ actor WindowConductor {
         guard self.catalog.isEmpty else { return }
         self.pruneWinds()
         guard self.history.count > 2 else { return }
-
-        // print("[doRaiseWalk] \(self.walkHistoryIndex)")
-        // for w in self.history {
-        //     print("- \(w.title!)")
-        // }
-
         self.raise(
             win: self.history[self.history.count - 1 - self.walkHistoryIndex],
             updateHistory: false
@@ -200,7 +191,6 @@ actor WindowConductor {
             AXObserverCreate(
                 pid,
                 { ob, win, noti, ptr in
-                    // print("--> \(win)")
                     let wc = Unmanaged<WindowConductor>.fromOpaque(ptr!).takeUnretainedValue()
                     Task { await wc.updateHistory() }
                 },
@@ -220,29 +210,17 @@ actor WindowConductor {
     func onLaunchApp(noti: Notification) {
         let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
         guard app.activationPolicy == .regular else { return }
-
-        // print("[*] \(app.localizedName!)")
         self.observe(pid: app.processIdentifier)
     }
 
     func onActivateApp(noti: Notification) {
-        // print(
-        //     "=> \((noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication).processIdentifier)"
-        // )
         Task { self.updateHistory() }
     }
 
     func onTerminateApp(noti: Notification) {
         let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
         guard app.activationPolicy == .regular else { return }
-
-        // print("[ ] \(app.localizedName!)")
         let observer = self.winObservers[app.processIdentifier]!
-        // // error: cannot remove observer from quitted app
-        // check(
-        //     AXObserverRemoveNotification(
-        //         observer, AXUIElementCreateApplication(app.processIdentifier),
-        //         kAXFocusedWindowChangedNotification as CFString))
         CFRunLoopRemoveSource(
             CFRunLoopGetMain(),
             AXObserverGetRunLoopSource(observer),
