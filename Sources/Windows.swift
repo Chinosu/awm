@@ -17,13 +17,7 @@ actor WindowConductor {
 
     var catalog = [(Wind, CGPoint, CGSize)]()
 
-    var watch = false
-    var cont: AsyncStream<()>.Continuation!
-    var stream: AsyncStream<()>!
-
     init() async {
-        self.stream = AsyncStream { self.cont = $0 }
-
         for wind in Wind.all() {
             self.winds.append(wind)
             self.history.append(wind)
@@ -81,7 +75,6 @@ actor WindowConductor {
     }
 
     func updateHistory() {
-        if self.watch { self.cont.yield(()) }
         if self.suppressUpdate != 0 {
             // print("[!] suppress \(suppressUpdate)")
             self.suppressUpdate -= 1
@@ -153,18 +146,15 @@ actor WindowConductor {
                 i += 1
             }
             for wind in self.winds {
-                self.watch = true
-                for _ in 0..<self.raise(win: wind, updateHistory: false) {
-                    for await _ in self.stream { break }
-                }
-                self.watch = false
+                self.raise(win: wind, updateHistory: false)
+                try! await Task.sleep(nanoseconds: 15_000_000)
             }
         } else {
             await self.undoCatalog()
         }
     }
 
-    func raise(win wind: Wind, updateHistory: Bool = true) -> Int {
+    func raise(win wind: Wind, updateHistory: Bool = true) {
         if updateHistory {
             if self.walk, let top = Wind.top() {
                 self.walk = false
@@ -178,15 +168,12 @@ actor WindowConductor {
             self.suppressUpdate += 2
             app.activate()
             wind.raise()
-            return 2
         } else {
             if Wind.top() != wind {
                 self.suppressUpdate += 1
                 wind.raise()
-                return 1
             }
         }
-        return 0
     }
 
     func undoCatalog() async {
@@ -196,9 +183,11 @@ actor WindowConductor {
             if !wind.alive() { continue }
             wind.position(set: position)
             wind.size(set: size)
-
+        }
+        for (wind, _, _) in self.catalog {
+            if !wind.alive() { continue }
             self.raise(win: wind, updateHistory: false)
-            // try! await Task.sleep(nanoseconds: 20_000_000)
+            try! await Task.sleep(nanoseconds: 15_000_000)
         }
 
         self.catalog.removeAll(keepingCapacity: true)
