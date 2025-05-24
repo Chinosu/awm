@@ -15,6 +15,8 @@ actor WindowConductor {
     var walkHistoryIndex = 2
     var suppressUpdate = 0
 
+    var preCatalog = [(Wind, CGPoint, CGSize)]()
+
     init() async {
         self.winds = []
         for wind in Wind.all() { self.winds.append(wind) }
@@ -109,7 +111,7 @@ actor WindowConductor {
         raise(win: self.winds[index])
     }
 
-    func doRaisePrev() {
+    func doPrev() {
         self.pruneWinds()
         guard self.history.count >= 2 else { return }
         if self.walk {
@@ -119,7 +121,7 @@ actor WindowConductor {
         }
     }
 
-    func doRaiseWalk() {
+    func doWalk() {
         self.pruneWinds()
         guard self.history.count > 2 else { return }
 
@@ -136,6 +138,33 @@ actor WindowConductor {
         self.walkHistoryIndex = max(2, (self.walkHistoryIndex + 1) % self.history.count)
     }
 
+    func doCatalog() async {
+        self.pruneWinds()
+        guard self.winds.count != 0 else { return }
+
+        if self.preCatalog.isEmpty {
+            var i = 1
+            for wind in self.winds {
+                self.preCatalog.append((wind, wind.position(), wind.size()))
+                wind.position(set: CGPoint(x: (i - 1) * 75, y: i * 50))
+                wind.size(set: CGSize(width: 1000, height: 1000))
+
+                try! await Task.sleep(nanoseconds: 20_000_000)
+                self.raise(win: wind, updateHistory: false)
+
+                i += 1
+            }
+        } else {
+            for (wind, position, size) in self.preCatalog {
+                wind.position(set: position)
+                wind.size(set: size)
+            }
+
+            self.preCatalog.removeAll(keepingCapacity: true)
+            self.raise(win: self.history.last!, updateHistory: false)
+        }
+    }
+
     private func raise(win wind: Wind, updateHistory: Bool = true) {
         if updateHistory {
             if self.walk, let top = Wind.top() {
@@ -145,21 +174,15 @@ actor WindowConductor {
             self.history.append(wind)
         }
 
-        let app = NSRunningApplication(processIdentifier: wind.pid!)!
+        let app = NSRunningApplication(processIdentifier: wind.pid())!
         if app != NSWorkspace.shared.frontmostApplication {
             self.suppressUpdate += 2
             app.activate()
-            wind.raise()!
+            wind.raise()
         } else {
-            var value: CFTypeRef?
-            AXUIElementCopyAttributeValue(
-                AXUIElementCreateApplication(app.processIdentifier),
-                kAXFocusedWindowAttribute as CFString,
-                &value
-            )
-            if wind.inner != value as! AXUIElement {
+            if !wind.focused() {
                 self.suppressUpdate += 1
-                wind.raise()!
+                wind.raise()
             }
         }
     }
@@ -245,35 +268,64 @@ struct Wind: Equatable, Hashable {
             == AXUIElementCopyAttributeValue(self.inner, kAXMainAttribute as CFString, &value)
     }
 
-    var focused: Bool? {
+    func focused() -> Bool {
         var value: CFTypeRef?
         guard
             AXUIElementCopyAttributeValue(self.inner, kAXFocusedAttribute as CFString, &value)
                 == .success
-        else { return nil }
-        return value as? Bool
+        else { preconditionFailure() }
+        return (value as! Bool)
     }
 
-    var title: String? {
+    func title() -> String {
         var value: CFTypeRef?
         guard
             AXUIElementCopyAttributeValue(self.inner, kAXTitleAttribute as CFString, &value)
                 == .success
-        else { return nil }
-        return value as? String
+        else { preconditionFailure() }
+        return value as! String
     }
 
-    var pid: pid_t? {
+    func pid() -> pid_t {
         var pid: pid_t = 0
-        guard AXUIElementGetPid(self.inner, &pid) == .success else { return nil }
+        guard AXUIElementGetPid(self.inner, &pid) == .success else { preconditionFailure() }
         return pid
     }
 
-    func raise() -> ()? {
+    func position() -> CGPoint {
+        var value: CFTypeRef?
+        AXUIElementCopyAttributeValue(self.inner, kAXPositionAttribute as CFString, &value)
+
+        var point = CGPoint()
+        AXValueGetValue(value as! AXValue, .cgPoint, &point)
+        return point
+    }
+
+    func position(set newValue: CGPoint) {
+        var point = newValue
+        let value = AXValueCreate(.cgPoint, &point)!
+        AXUIElementSetAttributeValue(self.inner, kAXPositionAttribute as CFString, value)
+    }
+
+    func size() -> CGSize {
+        var value: CFTypeRef?
+        AXUIElementCopyAttributeValue(self.inner, kAXSizeAttribute as CFString, &value)
+
+        var size = CGSize()
+        AXValueGetValue(value as! AXValue, .cgSize, &size)
+        return size
+    }
+
+    func size(set newValue: CGSize) {
+        var size = newValue
+        let value = AXValueCreate(.cgSize, &size)!
+        AXUIElementSetAttributeValue(self.inner, kAXSizeAttribute as CFString, value)
+    }
+
+    func raise() {
         guard AXUIElementPerformAction(self.inner, kAXRaiseAction as CFString) == .success else {
-            return nil
+            preconditionFailure()
         }
-        return ()
     }
 
     static func top() -> Wind? {
@@ -288,30 +340,23 @@ struct Wind: Equatable, Hashable {
     }
 
     static func all() -> [Wind] {
-        var uniqPids = Set<pid_t>()
         var wins = [Wind]()
-
         let apps = NSWorkspace.shared.runningApplications
             .lazy
             .filter { $0.activationPolicy == .regular }
         for app in apps {
-            guard !uniqPids.contains(app.processIdentifier) else { continue }
-            uniqPids.insert(app.processIdentifier)
             let axApp = AXUIElementCreateApplication(app.processIdentifier)
 
-            guard
-                let appWins = {
-                    var value: CFTypeRef?
-                    AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value)
-                    return value as? [AXUIElement]
-                }()
-            else { continue }
+            var value: CFTypeRef?
+            AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &value)
+            guard let winds = value as? [AXUIElement] else { continue }
+
             if app.bundleIdentifier == "com.apple.finder" {
                 // finder always has one dummy/hidden window
                 // therefore skip it
-                wins.append(contentsOf: appWins[1...].lazy.map({ w in Wind.self(w) }))
+                wins.append(contentsOf: winds[1...].lazy.map({ w in Wind.self(w) }))
             } else {
-                wins.append(contentsOf: appWins.lazy.map({ w in Wind.self(w) }))
+                wins.append(contentsOf: winds.lazy.map({ w in Wind.self(w) }))
             }
         }
 

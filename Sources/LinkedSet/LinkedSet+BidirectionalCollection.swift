@@ -58,7 +58,10 @@ extension LinkedSet: BidirectionalCollection {
     }
 
     func index(before i: Index) -> Index {
-        guard let ii = i.i else { preconditionFailure() }
-        return Index(i: self.mem[ii].prev, mem: self.mem)
+        if let ii = i.i {
+            return Index(i: self.mem[ii].prev, mem: self.mem)
+        } else {
+            return Index(i: self.end!, mem: self.mem)
+        }
     }
 }
