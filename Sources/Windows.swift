@@ -11,10 +11,7 @@ actor WindowConductor {
     var activateAppObserver: (any NSObjectProtocol)?
     var terminateAppObserver: (any NSObjectProtocol)?
 
-    var walk = false
-    var walkHistoryIndex = 2
     var suppressUpdate = 0
-
     var catalog = [(Wind, CGPoint, CGSize)]()
 
     init() async {
@@ -108,64 +105,8 @@ actor WindowConductor {
         guard self.catalog.isEmpty else { return }
         self.pruneWinds()
         guard self.history.count >= 2 else { return }
-        if self.walk {
-            self.raise(win: self.history[self.history.count - 1])
-        } else {
-            self.raise(win: self.history[self.history.count - 2])
-        }
+        self.raise(win: self.history[self.history.count - 2])
     }
-
-    func doWalk() {
-        guard self.catalog.isEmpty else { return }
-        self.pruneWinds()
-        guard self.history.count > 2 else { return }
-        self.raise(
-            win: self.history[self.history.count - 1 - self.walkHistoryIndex],
-            updateHistory: false
-        )
-        self.walk = true
-        self.walkHistoryIndex = max(2, (self.walkHistoryIndex + 1) % self.history.count)
-    }
-
-    // func doCatalog() async {
-    //     self.pruneWinds()
-    //     guard self.winds.count != 0 else { return }
-
-    //     assert(self.history.count == self.winds.count)
-
-    //     if self.catalog.isEmpty {
-    //         var i = 1
-    //         for wind in self.history {
-    //             self.catalog.append((wind, wind.position(), wind.size()))
-    //         }
-    //         for wind in self.winds {
-    //             wind.position(set: CGPoint(x: (i - 1) * 75, y: i * 50))
-    //             wind.size(set: CGSize(width: 1000, height: 1000))
-    //             i += 1
-    //         }
-    //         for wind in self.winds {
-    //             self.raise(win: wind, updateHistory: false)
-    //             try! await Task.sleep(nanoseconds: 15_000_000)
-    //         }
-    //     } else {
-    //         await self.undoCatalog()
-    //     }
-    // }
-    // func undoCatalog() async {
-    //     guard !self.catalog.isEmpty else { return }
-
-    //     let catalog = self.catalog.lazy.filter({ $0.0.alive() })
-    //     for (wind, position, size) in catalog {
-    //         wind.position(set: position)
-    //         wind.size(set: size)
-    //     }
-    //     for (wind, _, _) in catalog {
-    //         self.raise(win: wind, updateHistory: false)
-    //         try! await Task.sleep(nanoseconds: 15_000_000)
-    //     }
-    //     self.raise(win: self.history.last!, updateHistory: false)
-    //     self.catalog.removeAll(keepingCapacity: true)
-    // }
 
     func doHistoryCatalog() {
         self.pruneWinds()
@@ -200,13 +141,7 @@ actor WindowConductor {
     }
 
     func raise(win wind: Wind, updateHistory: Bool = true) {
-        if updateHistory {
-            if self.walk, let top = Wind.top() {
-                self.walk = false
-                self.history.append(top)
-            }
-            self.history.append(wind)
-        }
+        if updateHistory { self.history.append(wind) }
 
         let app = NSRunningApplication(processIdentifier: wind.pid())!
         if app != NSWorkspace.shared.frontmostApplication {
