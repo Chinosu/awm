@@ -1,5 +1,4 @@
 import AppKit
-import Collections  // todo remove
 
 @available(macOS 15.4.0, *)
 actor WindowConductor {
