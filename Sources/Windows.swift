@@ -217,6 +217,7 @@ actor WindowConductor {
         let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
         guard app.activationPolicy == .regular else { return }
         self.observe(pid: app.processIdentifier)
+        Task { self.updateHistory() }
     }
 
     func onActivateApp(noti: Notification) {
