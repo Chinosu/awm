@@ -1,5 +1,5 @@
 import AppKit
-import Collections
+import Collections  // todo remove
 
 @available(macOS 15.4.0, *)
 actor WindowConductor {
@@ -16,14 +16,17 @@ actor WindowConductor {
     var inCatalog: Bool { !catalog.isEmpty }
     var catalogRearranged = false
 
+    // var contin: AsyncStream<AXUIElement>.Continuation!
+    // var stream: AsyncStream<AXUIElement>!
+
     init() async {
+        // self.stream = AsyncStream { self.contin = $0 }
         for wind in Wind.all() {
             self.winds.append(wind)
             self.history.append(wind)
         }
         guard self.winds.count != 0 else { fatalError() }
-        guard let top = Wind.top() else { fatalError() }
-        self.history.append(top)
+        self.history.append(await Wind.top())
 
         for app in NSWorkspace.shared.runningApplications {
             guard app.activationPolicy == .regular else { continue }
@@ -73,15 +76,36 @@ actor WindowConductor {
         }
     }
 
-    func updateHistory() {
+    func updateHistory() async {
         if self.suppressUpdate != 0 {
             self.suppressUpdate -= 1
             return
         }
 
-        guard let wind = Wind.top() else { return }
-        self.history.append(wind)
-        self.winds.append(wind, deleteExisting: false)
+        let top = await Wind.top()
+        self.history.append(top)
+        self.winds.append(top, deleteExisting: false)
+    }
+
+    func updateHistory(wind: AXUIElement) {
+        if self.suppressUpdate != 0 {
+            self.suppressUpdate -= 1
+            return
+        }
+
+        self.history.append(Wind(wind))
+        self.winds.append(Wind(wind), deleteExisting: false)
+    }
+
+    func updateHistory(pid: pid_t) async {
+        if self.suppressUpdate != 0 {
+            self.suppressUpdate -= 1
+            return
+        }
+
+        let top = await Wind.top(pid: pid)
+        self.history.append(top)
+        self.winds.append(top, deleteExisting: false)
     }
 
     func pruneWinds() {
@@ -97,21 +121,21 @@ actor WindowConductor {
             let order = if self.catalogRearranged { self.winds } else { self.history }
             guard 0 <= index && index < order.count else { return }
             await self.undoCatalog()
-            self.raise(win: order[index])
+            await self.raise(win: order[index])
             return
         }
 
         guard 0 <= index && index < self.winds.count else { return }
-        self.raise(win: self.winds[index])
+        await self.raise(win: self.winds[index])
     }
 
-    func doPrev() {
+    func doPrev() async {
         self.pruneWinds()
 
         guard !self.inCatalog else { return }
 
         guard self.history.count >= 2 else { return }
-        self.raise(win: self.history[self.history.count - 2])
+        await self.raise(win: self.history[self.history.count - 2])
     }
 
     func doHistCatalog() async {
@@ -143,7 +167,7 @@ actor WindowConductor {
             wind.size(set: CGSize(width: 1000, height: 1000))
         }
         for wind in self.winds {
-            self.raise(win: wind, updateHistory: false)
+            await self.raise(win: wind, updateHistory: false)
             try! await Task.sleep(nanoseconds: 15_000_000)
         }
 
@@ -152,7 +176,7 @@ actor WindowConductor {
 
     func undoCatalog() async {
         guard self.inCatalog else { return }
-        guard let top = Wind.top() else { return }
+        let top = await Wind.top()
 
         for (wind, position, size) in self.catalog {
             wind.position(set: position)
@@ -161,21 +185,21 @@ actor WindowConductor {
 
         if self.catalogRearranged {
             for (wind, _, _) in catalog {
-                self.raise(win: wind, updateHistory: false)
+                await self.raise(win: wind, updateHistory: false)
                 try! await Task.sleep(for: .milliseconds(15))
             }
         }
 
         // might remove
         let operand = if self.catalogRearranged { self.winds.last } else { self.history.last }
-        if top != operand { self.raise(win: top) }
+        if top != operand { await self.raise(win: top) }
 
         self.catalog.removeAll(keepingCapacity: true)
 
         self.catalogRearranged = false
     }
 
-    func raise(win wind: Wind, updateHistory: Bool = true) {
+    func raise(win wind: Wind, updateHistory: Bool = true) async {
         if updateHistory { self.history.append(wind) }
 
         let app = NSRunningApplication(processIdentifier: wind.pid())!
@@ -184,7 +208,7 @@ actor WindowConductor {
             app.activate()
             wind.raise()
         } else {
-            if Wind.top() != wind {
+            if await Wind.top() != wind {
                 self.suppressUpdate += 1
                 wind.raise()
             }
@@ -196,13 +220,17 @@ actor WindowConductor {
         check(
             AXObserverCreate(
                 pid,
-                { ob, win, noti, ptr in
+                { ob, element, noti, ptr in
                     let wc = Unmanaged<WindowConductor>.fromOpaque(ptr!).takeUnretainedValue()
-                    Task { await wc.updateHistory() }
+                    // Task { await wc.updateHistory() }
+                    nonisolated(unsafe) let wind = element
+                    Task { @Sendable in await wc.updateHistory(wind: wind) }
+                    assert(Thread.isMainThread)
+                    // let str = ptr!.assumingMemoryBound(to: AsyncStream<Int>.Continuation.self)
+                    // str.pointee.yield(2)
                 },
                 &observer
             ))
-
         check(
             AXObserverAddNotification(
                 observer!, AXUIElementCreateApplication(pid),
@@ -217,11 +245,11 @@ actor WindowConductor {
         let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
         guard app.activationPolicy == .regular else { return }
         self.observe(pid: app.processIdentifier)
-        Task { self.updateHistory() }
     }
 
     func onActivateApp(noti: Notification) {
-        Task { self.updateHistory() }
+        let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
+        Task { await self.updateHistory(pid: app.processIdentifier) }
     }
 
     func onTerminateApp(noti: Notification) {
@@ -309,16 +337,21 @@ struct Wind: Equatable, Hashable {
         check(AXUIElementPerformAction(self.inner, kAXRaiseAction as CFString))
     }
 
-    static func top() -> Wind? {
-        guard let nsApp = NSWorkspace.shared.frontmostApplication else { return nil }
+    static func top() async -> Wind {
+        return await Self.top(pid: NSWorkspace.shared.frontmostApplication!.processIdentifier)
+    }
 
+    static func top(pid: pid_t) async -> Wind {
         var value: AnyObject?
-        AXUIElementCopyAttributeValue(
-            AXUIElementCreateApplication(nsApp.processIdentifier),
-            kAXFocusedWindowAttribute as CFString, &value
-        )
-
-        return if value != nil { Wind(value as! AXUIElement) } else { nil }
+        while AXUIElementCopyAttributeValue(
+            AXUIElementCreateApplication(pid), kAXMainWindowAttribute as CFString, &value)
+            == .cannotComplete
+        {
+            // app might still be starting up; wait
+            try! await Task.sleep(for: .milliseconds(200))
+        }
+        assert(value != nil)
+        return Wind(value as! AXUIElement)
     }
 
     static func all() -> [Wind] {
