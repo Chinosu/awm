@@ -24,7 +24,7 @@ actor WindowConductor {
             self.history.append(wind)
         }
         guard self.winds.count != 0 else { fatalError() }
-        self.history.append(await Wind.top())
+        if let top = await Wind.top() { self.history.append(top) }
 
         for app in NSWorkspace.shared.runningApplications {
             guard app.activationPolicy == .regular else { continue }
@@ -88,7 +88,7 @@ actor WindowConductor {
             return
         }
 
-        let top = await Wind.top()
+        guard let top = await Wind.top() else { return }
         self.history.append(top)
         self.winds.append(top, deleteExisting: false)
     }
@@ -109,7 +109,7 @@ actor WindowConductor {
             return
         }
 
-        let top = await Wind.top(pid: pid)
+        guard let top = await Wind.top(pid: pid) else { return }
         self.history.append(top)
         self.winds.append(top, deleteExisting: false)
     }
@@ -180,7 +180,7 @@ actor WindowConductor {
 
     func undoCatalog() async {
         guard self.inCatalog else { return }
-        let top = await Wind.top()
+        guard let top = await Wind.top() else { return }
 
         for (wind, position, size) in self.catalog {
             wind.position(set: position)
@@ -340,20 +340,20 @@ struct Wind: Equatable, Hashable {
         check(AXUIElementPerformAction(self.inner, kAXRaiseAction as CFString))
     }
 
-    static func top() async -> Wind {
+    static func top() async -> Wind? {
         return await Self.top(pid: NSWorkspace.shared.frontmostApplication!.processIdentifier)
     }
 
-    static func top(pid: pid_t) async -> Wind {
+    static func top(pid: pid_t) async -> Wind? {
         var value: AnyObject?
         while AXUIElementCopyAttributeValue(
             AXUIElementCreateApplication(pid), kAXMainWindowAttribute as CFString, &value)
             == .cannotComplete
         {
             // app might still be starting up; wait
-            try! await Task.sleep(for: .milliseconds(200))
+            try! await Task.sleep(for: .milliseconds(100))
         }
-        assert(value != nil)
+        if value == nil { return nil }
         return Wind(value as! AXUIElement)
     }
 
