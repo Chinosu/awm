@@ -24,7 +24,7 @@ actor WindowConductor {
             self.history.append(wind)
         }
         guard self.winds.count != 0 else { fatalError() }
-        if let top = await Wind.top() { self.history.append(top) }
+        if let top = await Wind.top() { self.history.append(top) } else { fatalError() }
 
         for app in NSWorkspace.shared.runningApplications {
             guard app.activationPolicy == .regular else { continue }
@@ -286,7 +286,11 @@ struct Wind: Equatable, Hashable {
 
     func alive() -> Bool {
         var value: AnyObject?
-        let result = AXUIElementCopyAttributeValue(self.inner, kAXMainAttribute as CFString, &value)
+        // specifically ask for `AXTitle` as Finder's "hidden"
+        // window does *not* have a title, so this will
+        // conveniently ignore that specific window
+        let result = AXUIElementCopyAttributeValue(
+            self.inner, kAXTitleAttribute as CFString, &value)
         return result == .success
     }
 

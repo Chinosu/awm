@@ -84,7 +84,8 @@ struct LinkedSet<Element> where Element: Hashable {
                     self.end = node.prev
                 }
 
-                self.items.removeValue(forKey: node.elem)
+                let result = self.items.removeValue(forKey: node.elem)
+                assert(result != nil)
                 self.dealloc(index: c)
             }
 
