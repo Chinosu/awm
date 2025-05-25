@@ -14,11 +14,7 @@ actor WindConductor {
     var inCatalog: Bool { !catalog.isEmpty }
     var catalogRearranged = false
 
-    // var contin: AsyncStream<AXUIElement>.Continuation!
-    // var stream: AsyncStream<AXUIElement>!
-
     init() async {
-        // self.stream = AsyncStream { self.contin = $0 }
         for wind in Wind.all() {
             self.winds.append(wind)
             self.history.append(wind)
@@ -92,16 +88,6 @@ actor WindConductor {
         self.history.append(top)
         self.winds.append(top, deleteExisting: false)
     }
-
-    // func updateHistory(wind: AXUIElement) {
-    //     if self.suppressUpdate != 0 {
-    //         self.suppressUpdate -= 1
-    //         return
-    //     }
-
-    //     self.history.append(Wind(wind))
-    //     self.winds.append(Wind(wind), deleteExisting: false)
-    // }
 
     func updateHistory(pid: pid_t) async {
         if self.suppressUpdate != 0 {
@@ -226,11 +212,6 @@ actor WindConductor {
                 { ob, element, noti, ptr in
                     let wc = Unmanaged<WindConductor>.fromOpaque(ptr!).takeUnretainedValue()
                     Task { await wc.updateHistory() }
-                    // nonisolated(unsafe) let wind = element
-                    // Task { @Sendable in await wc.updateHistory(wind: wind) }
-                    // assert(Thread.isMainThread)
-                    // let str = ptr!.assumingMemoryBound(to: AsyncStream<Int>.Continuation.self)
-                    // str.pointee.yield(2)
                 },
                 &observer
             ))
