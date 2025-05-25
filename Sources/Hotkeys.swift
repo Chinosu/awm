@@ -1,7 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
 
-@available(macOS 15.4.0, *)
 func hotkeys(_ wc: WindowConductor) {
     let ptr = Unmanaged.passRetained(wc)
     // ptr.release()
@@ -21,7 +20,6 @@ func hotkeys(_ wc: WindowConductor) {
     CGEvent.tapEnable(tap: eventTap, enable: true)
 }
 
-@available(macOS 15.4.0, *)
 private func keyDispatch(
     proxy: CGEventTapProxy,
     kind: CGEventType,

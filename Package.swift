@@ -30,7 +30,7 @@ let package = Package(
                         "-remove-runtime-asserts",
                     ], .when(configuration: .release)
                 )
-            ],
+            ]
         ),
         .testTarget(name: "awmtests", dependencies: ["awm"]),
     ]

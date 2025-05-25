@@ -1,6 +1,5 @@
 import AppKit
 
-@available(macOS 15.4.0, *)
 actor WindowConductor {
     var winds: LinkedSet<Wind> = []
     var history: LinkedSet<Wind> = []
@@ -51,36 +50,37 @@ actor WindowConductor {
         )
     }
 
-    isolated deinit {
-        if let observer = self.launchAppObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(
-                observer,
-                name: NSWorkspace.didLaunchApplicationNotification,
-                object: nil
-            )
-        }
-        if let observer = self.activateAppObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(
-                observer,
-                name: NSWorkspace.didActivateApplicationNotification,
-                object: nil
-            )
-        }
-        if let observer = self.terminateAppObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(
-                observer,
-                name: NSWorkspace.didTerminateApplicationNotification,
-                object: nil
-            )
-        }
-        for obser in self.windObservers.values {
-            CFRunLoopRemoveSource(
-                CFRunLoopGetMain(), AXObserverGetRunLoopSource(obser), .defaultMode)
-            assert(
-                !CFRunLoopContainsSource(
-                    CFRunLoopGetMain(), AXObserverGetRunLoopSource(obser), .defaultMode))
-        }
-    }
+    // // compiler >= 6.2
+    // isolated deinit {
+    //     if let observer = self.launchAppObserver {
+    //         NSWorkspace.shared.notificationCenter.removeObserver(
+    //             observer,
+    //             name: NSWorkspace.didLaunchApplicationNotification,
+    //             object: nil
+    //         )
+    //     }
+    //     if let observer = self.activateAppObserver {
+    //         NSWorkspace.shared.notificationCenter.removeObserver(
+    //             observer,
+    //             name: NSWorkspace.didActivateApplicationNotification,
+    //             object: nil
+    //         )
+    //     }
+    //     if let observer = self.terminateAppObserver {
+    //         NSWorkspace.shared.notificationCenter.removeObserver(
+    //             observer,
+    //             name: NSWorkspace.didTerminateApplicationNotification,
+    //             object: nil
+    //         )
+    //     }
+    //     for obser in self.windObservers.values {
+    //         CFRunLoopRemoveSource(
+    //             CFRunLoopGetMain(), AXObserverGetRunLoopSource(obser), .defaultMode)
+    //         assert(
+    //             !CFRunLoopContainsSource(
+    //                 CFRunLoopGetMain(), AXObserverGetRunLoopSource(obser), .defaultMode))
+    //     }
+    // }
 
     func updateHistory() async {
         if self.suppressUpdate != 0 {
@@ -93,15 +93,15 @@ actor WindowConductor {
         self.winds.append(top, deleteExisting: false)
     }
 
-    func updateHistory(wind: AXUIElement) {
-        if self.suppressUpdate != 0 {
-            self.suppressUpdate -= 1
-            return
-        }
+    // func updateHistory(wind: AXUIElement) {
+    //     if self.suppressUpdate != 0 {
+    //         self.suppressUpdate -= 1
+    //         return
+    //     }
 
-        self.history.append(Wind(wind))
-        self.winds.append(Wind(wind), deleteExisting: false)
-    }
+    //     self.history.append(Wind(wind))
+    //     self.winds.append(Wind(wind), deleteExisting: false)
+    // }
 
     func updateHistory(pid: pid_t) async {
         if self.suppressUpdate != 0 {
@@ -147,10 +147,9 @@ actor WindowConductor {
     func doHistCatalog() async {
         self.pruneWinds()
         guard self.winds.count != 0 else { return }
+        guard !self.inCatalog else { return await self.undoCatalog() }
 
         assert(self.history.count == self.winds.count)
-
-        guard !self.inCatalog else { return await self.undoCatalog() }
 
         for (i, wind) in self.history.enumerated() {
             self.catalog.append((wind, wind.position(), wind.size()))
@@ -162,10 +161,9 @@ actor WindowConductor {
     func doWindsCatalog() async {
         self.pruneWinds()
         guard self.winds.count != 0 else { return }
+        guard !self.inCatalog else { return await self.undoCatalog() }
 
         assert(self.history.count == self.winds.count)
-
-        guard !self.inCatalog else { return await self.undoCatalog() }
 
         for wind in self.history { self.catalog.append((wind, wind.position(), wind.size())) }
         for (i, wind) in self.winds.enumerated() {
@@ -201,7 +199,6 @@ actor WindowConductor {
         if top != operand { await self.raise(win: top) }
 
         self.catalog.removeAll(keepingCapacity: true)
-
         self.catalogRearranged = false
     }
 
@@ -228,10 +225,10 @@ actor WindowConductor {
                 pid,
                 { ob, element, noti, ptr in
                     let wc = Unmanaged<WindowConductor>.fromOpaque(ptr!).takeUnretainedValue()
-                    // Task { await wc.updateHistory() }
-                    nonisolated(unsafe) let wind = element
-                    Task { @Sendable in await wc.updateHistory(wind: wind) }
-                    assert(Thread.isMainThread)
+                    Task { await wc.updateHistory() }
+                    // nonisolated(unsafe) let wind = element
+                    // Task { @Sendable in await wc.updateHistory(wind: wind) }
+                    // assert(Thread.isMainThread)
                     // let str = ptr!.assumingMemoryBound(to: AsyncStream<Int>.Continuation.self)
                     // str.pointee.yield(2)
                 },
