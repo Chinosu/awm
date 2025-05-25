@@ -5,7 +5,7 @@ actor WindowConductor {
     var winds: LinkedSet<Wind> = []
     var history: LinkedSet<Wind> = []
 
-    var winObservers = [pid_t: AXObserver]()
+    var windObservers = [pid_t: AXObserver]()
     var launchAppObserver: (any NSObjectProtocol)?
     var activateAppObserver: (any NSObjectProtocol)?
     var terminateAppObserver: (any NSObjectProtocol)?
@@ -72,6 +72,13 @@ actor WindowConductor {
                 name: NSWorkspace.didTerminateApplicationNotification,
                 object: nil
             )
+        }
+        for obser in self.windObservers.values {
+            CFRunLoopRemoveSource(
+                CFRunLoopGetMain(), AXObserverGetRunLoopSource(obser), .defaultMode)
+            assert(
+                !CFRunLoopContainsSource(
+                    CFRunLoopGetMain(), AXObserverGetRunLoopSource(obser), .defaultMode))
         }
     }
 
@@ -237,7 +244,7 @@ actor WindowConductor {
                 Unmanaged.passUnretained(self).toOpaque()))
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer!), .defaultMode)
 
-        self.winObservers[pid] = observer
+        self.windObservers[pid] = observer
     }
 
     func onLaunchApp(noti: Notification) {
@@ -254,7 +261,7 @@ actor WindowConductor {
     func onTerminateApp(noti: Notification) {
         let app = noti.userInfo![NSWorkspace.applicationUserInfoKey] as! NSRunningApplication
         guard app.activationPolicy == .regular else { return }
-        let observer = self.winObservers[app.processIdentifier]!
+        let observer = self.windObservers[app.processIdentifier]!
         CFRunLoopRemoveSource(
             CFRunLoopGetMain(),
             AXObserverGetRunLoopSource(observer),
@@ -263,7 +270,7 @@ actor WindowConductor {
         assert(
             !CFRunLoopContainsSource(
                 CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode))
-        check(self.winObservers.removeValue(forKey: app.processIdentifier))
+        check(self.windObservers.removeValue(forKey: app.processIdentifier))
     }
 }
 
