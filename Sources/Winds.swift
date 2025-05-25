@@ -1,6 +1,6 @@
 import AppKit
 
-actor WindowConductor {
+actor WindConductor {
     var winds: LinkedSet<Wind> = []
     var history: LinkedSet<Wind> = []
 
@@ -224,7 +224,7 @@ actor WindowConductor {
             AXObserverCreate(
                 pid,
                 { ob, element, noti, ptr in
-                    let wc = Unmanaged<WindowConductor>.fromOpaque(ptr!).takeUnretainedValue()
+                    let wc = Unmanaged<WindConductor>.fromOpaque(ptr!).takeUnretainedValue()
                     Task { await wc.updateHistory() }
                     // nonisolated(unsafe) let wind = element
                     // Task { @Sendable in await wc.updateHistory(wind: wind) }

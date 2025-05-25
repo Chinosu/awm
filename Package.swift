@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "awm",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v14)],
     // dependencies: [
     //     .package(url: "https://github.com/apple/swift-collections.git", branch: "main")
     // ],

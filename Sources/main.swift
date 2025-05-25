@@ -8,7 +8,7 @@ guard argv.count == 1 else {
 }
 
 Task {
-    let wc = await WindowConductor()
+    let wc = await WindConductor()
     hotkeys(wc)
 }
 RunLoop.current.run()
