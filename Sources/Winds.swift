@@ -87,6 +87,10 @@ actor WindConductor {
         guard let top = await Wind.top() else { return }
         self.history.append(top)
         self.winds.append(top, deleteExisting: false)
+        if self.inCatalog {
+            await self.undoCatalog()
+            await self.raise(win: top, updateHistory: false)
+        }
     }
 
     func updateHistory(pid: pid_t) async {
@@ -98,6 +102,10 @@ actor WindConductor {
         guard let top = await Wind.top(pid: pid) else { return }
         self.history.append(top)
         self.winds.append(top, deleteExisting: false)
+        if self.inCatalog {
+            await self.undoCatalog()
+            await self.raise(win: top, updateHistory: false)
+        }
     }
 
     func pruneWinds() {
@@ -119,6 +127,15 @@ actor WindConductor {
 
         guard 0 <= index && index < self.winds.count else { return }
         await self.raise(win: self.winds[index])
+    }
+
+    func doRearrange(index: Int) async {
+        self.pruneWinds()
+
+        guard !self.inCatalog else { return }  // todo upgrade
+        guard !self.winds.isEmpty else { return }
+        assert(self.winds.count == self.history.count)
+        self.winds.insert(at: index, self.history.last!)
     }
 
     func doPrev() async {
@@ -158,7 +175,7 @@ actor WindConductor {
         }
         for wind in self.winds {
             await self.raise(win: wind, updateHistory: false)
-            try! await Task.sleep(nanoseconds: 15_000_000)
+            try! await Task.sleep(for: .milliseconds(50))
         }
 
         self.catalogRearranged = true
@@ -166,7 +183,7 @@ actor WindConductor {
 
     func undoCatalog() async {
         guard self.inCatalog else { return }
-        guard let top = await Wind.top() else { return }
+        // guard let top = await Wind.top() else { return }
 
         for (wind, position, size) in self.catalog {
             wind.position(set: position)
@@ -176,13 +193,14 @@ actor WindConductor {
         if self.catalogRearranged {
             for (wind, _, _) in catalog {
                 await self.raise(win: wind, updateHistory: false)
-                try! await Task.sleep(for: .milliseconds(15))
+                try! await Task.sleep(for: .milliseconds(50))
             }
         }
 
         // might remove
-        let operand = if self.catalogRearranged { self.winds.last } else { self.history.last }
-        if top != operand { await self.raise(win: top) }
+        // let operand = if self.catalogRearranged { self.winds.last } else { self.history.last }
+        // assert(operand == top)
+        // if top != operand { await self.raise(win: top) }
 
         self.catalog.removeAll(keepingCapacity: true)
         self.catalogRearranged = false

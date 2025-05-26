@@ -18,14 +18,12 @@ struct LinkedSet<Element> where Element: Hashable {
             let cur = self.alloc(elem: item, prev: nil, next: nil)
             self.start = cur
             self.end = cur
-            self.items[item] = cur
             return
         }
 
         let cur = self.alloc(elem: item, prev: self.end, next: nil)
         self.mem[self.end!].next = cur
         self.end = cur
-        self.items[item] = cur
     }
 
     mutating func prepend(_ item: Element, deleteExisting: Bool = true) {
@@ -38,14 +36,47 @@ struct LinkedSet<Element> where Element: Hashable {
             let cur = self.alloc(elem: item, prev: nil, next: nil)
             self.start = cur
             self.end = cur
-            self.items[item] = cur
             return
         }
 
         let cur = self.alloc(elem: item, prev: nil, next: self.start)
         self.mem[self.start!].prev = cur
         self.start = cur
-        self.items[item] = cur
+    }
+
+    mutating func insert(at index: Int, _ item: Element, deleteExisting: Bool = true) {
+        if nil != self.items[item] {
+            if !deleteExisting { return }
+            self.delete(item)
+        }
+
+        if self.items.isEmpty {
+            let cur = self.alloc(elem: item, prev: nil, next: nil)
+            self.start = cur
+            self.end = cur
+            return
+        }
+
+        if index == 0 {
+            let node = self.alloc(elem: item, prev: nil, next: self.start)
+            self.start = node
+            return
+        }
+
+        var count = 1
+        var cur: Int! = self.start
+        while self.mem[cur].next != nil && count < index {
+            cur = self.mem[cur].next
+            count += 1
+        }
+
+        let node = self.alloc(elem: item, prev: cur, next: self.mem[cur].next)
+        if let next = self.mem[cur].next {
+            self.mem[next].prev = node
+        } else {
+            self.end = node
+        }
+        self.mem[cur].next = node
     }
 
     mutating func delete(_ item: Element) {
@@ -63,7 +94,6 @@ struct LinkedSet<Element> where Element: Hashable {
             self.end = self.mem[cur].prev
         }
 
-        self.items.removeValue(forKey: item)
         self.dealloc(index: cur)
     }
 
@@ -84,8 +114,6 @@ struct LinkedSet<Element> where Element: Hashable {
                     self.end = node.prev
                 }
 
-                let result = self.items.removeValue(forKey: node.elem)
-                assert(result != nil)
                 self.dealloc(index: c)
             }
 
@@ -99,14 +127,18 @@ struct LinkedSet<Element> where Element: Hashable {
             self.mem[i].elem = elem
             self.mem[i].prev = prev
             self.mem[i].next = next
+            self.items[elem] = i
             return i
         }
 
         self.mem.append(Node(elem: elem, prev: prev, next: next))
+        self.items[elem] = self.mem.count - 1
         return self.mem.count - 1
     }
 
     mutating func dealloc(index: Int) {
+        let result = self.items.removeValue(forKey: self.mem[index].elem)
+        assert(result != nil)
         self.free.insert(index)
     }
 
