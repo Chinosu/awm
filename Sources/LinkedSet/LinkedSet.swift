@@ -121,6 +121,13 @@ struct LinkedSet<Element> where Element: Hashable {
         }
     }
 
+    // mutating func updateEach(_ update: (inout Element) -> Void) {
+    //     for i in self.mem.indices {
+    //         if self.free.contains(i) { continue }
+    //         update(&self.mem[i].elem)
+    //     }
+    // }
+
     mutating func alloc(elem: Element, prev: Int?, next: Int?) -> Int {
         if let i = self.free.first {
             self.free.remove(i)
