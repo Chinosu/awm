@@ -1,7 +1,7 @@
 extension LinkedSet: BidirectionalCollection {
     struct Index: Comparable {
         let i: Int?
-        let mem: [Node]
+        let mem: ArraySlice<Node>
 
         static func < (lhs: Index, rhs: Index) -> Bool {
             guard let r = rhs.i else { return true }
@@ -21,8 +21,8 @@ extension LinkedSet: BidirectionalCollection {
         }
     }
 
-    var startIndex: Index { Index(i: self.start, mem: self.mem) }
-    var endIndex: Index { Index(i: nil, mem: self.mem) }
+    var startIndex: Index { Index(i: self.start, mem: self.mem[...]) }
+    var endIndex: Index { Index(i: nil, mem: self.mem[...]) }
 
     subscript(position: Index) -> Element {
         guard let i = position.i else { preconditionFailure() }
@@ -53,14 +53,14 @@ extension LinkedSet: BidirectionalCollection {
 
     func index(after i: Index) -> Index {
         guard let ii = i.i else { preconditionFailure() }
-        return Index(i: self.mem[ii].next, mem: self.mem)
+        return Index(i: self.mem[ii].next, mem: self.mem[...])
     }
 
     func index(before i: Index) -> Index {
         if let ii = i.i {
-            return Index(i: self.mem[ii].prev, mem: self.mem)
+            return Index(i: self.mem[ii].prev, mem: self.mem[...])
         } else {
-            return Index(i: self.end!, mem: self.mem)
+            return Index(i: self.end!, mem: self.mem[...])
         }
     }
 }
