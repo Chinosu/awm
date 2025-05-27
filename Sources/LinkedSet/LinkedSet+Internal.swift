@@ -1,7 +1,6 @@
 extension LinkedSet {
     mutating func alloc(elem: Element, prev: Int?, next: Int?) -> Int {
-        if let i = self.free.first {
-            self.free.remove(i)
+        if let i = self.free.popLast() {
             self.mem[i].elem = elem
             self.mem[i].prev = prev
             self.mem[i].next = next
@@ -17,7 +16,7 @@ extension LinkedSet {
     mutating func dealloc(index: Int) {
         let result = self.items.removeValue(forKey: self.mem[index].elem)
         assert(result != nil)
-        self.free.insert(index)
+        self.free.append(index)
     }
 
     struct Node: Equatable {

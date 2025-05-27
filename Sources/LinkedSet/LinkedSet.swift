@@ -4,7 +4,7 @@ struct LinkedSet<Element> where Element: Hashable {
     var end: Int? = nil
 
     var mem: [Node] = []
-    var free: Set<Int> = []
+    var free: [Int] = []
 
     var count: Int { self.items.count }
 

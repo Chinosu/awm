@@ -139,13 +139,13 @@ import Testing
             #expect(ls.count == 5)
             #expect(ls.first == "zero")
             #expect(ls.last == "end")
-            #expect(ls.items == ["zero": 0, "hello": 1, "bye": 2, "two": 3, "end": 4])
+            #expect(ls.items == ["zero": 3, "hello": 1, "bye": 2, "two": 0, "end": 4])
             #expect(
                 ls.mem == [
-                    LinkedSet.Node(elem: "zero", prev: nil, next: 1),
-                    LinkedSet.Node(elem: "hello", prev: 0, next: 3),
-                    LinkedSet.Node(elem: "bye", prev: 3, next: 4),
                     LinkedSet.Node(elem: "two", prev: 1, next: 2),
+                    LinkedSet.Node(elem: "hello", prev: 3, next: 0),
+                    LinkedSet.Node(elem: "bye", prev: 0, next: 4),
+                    LinkedSet.Node(elem: "zero", prev: nil, next: 1),
                     LinkedSet.Node(elem: "end", prev: 2, next: nil),
                 ])
             #expect(ls.free == [])
