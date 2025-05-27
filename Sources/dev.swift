@@ -6,7 +6,6 @@ nonisolated(unsafe) private var obs: [AXObserver] = []
 nonisolated(unsafe) private var ghosttys: Set<Wind> = []
 
 func dev() {
-    // ls()
     `fixGhostty??`()
     // `screens!!!`()
 }
@@ -119,48 +118,6 @@ func `fixGhostty??`() {
 func `screens!!!`() {
     print("> \(NSScreen.screens)")
 
-}
-
-func ls() {
-    var ls = LinkedSet<String>()
-    let p = {
-        print("LinkedSet")
-        print("--> items \(ls.items)")
-        print("--> mem:")
-        for m in ls.mem { print("    \(m)") }
-        print("--> free \(ls.free)")
-        print("--> items:")
-        for s in ls { print("    \(s)") }
-        print()
-    }
-    p()
-    ls.reappend("first")
-    ls.reappend("second")
-    ls.reappend("third")
-    p()
-    ls.reappend("first")
-    p()
-    ls.delete("third")
-    p()
-    ls.reappend("fourth")
-    p()
-    ls.delete("first")
-    ls.delete("second")
-    ls.delete("fourth")
-    p()
-    ls = ["hi", "hello", "bye"]
-    p()
-    print("»\(ls[0])«")
-    print("»\(ls[1])«")
-    print("»\(ls[2])«")
-    print(">> \(ls.map(\.count))")
-    ls.reappend("yeti")
-    ls.delete(where: { $0.count & 1 == 0 })
-    p()
-    ls.reinsert(at: 0, "newfirst")
-    ls.reinsert(at: 2, "two")
-    ls.reinsert(at: 100, "end")
-    p()
 }
 
 // postfix operator &
