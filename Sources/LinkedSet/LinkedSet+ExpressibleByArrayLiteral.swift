@@ -3,6 +3,6 @@ extension LinkedSet: ExpressibleByArrayLiteral {
 
     init(arrayLiteral elements: Element...) {
         // assume: deleteExisting = true
-        for elem in elements { self.append(elem) }
+        for elem in elements { self.reappend(elem) }
     }
 }

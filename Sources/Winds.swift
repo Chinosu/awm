@@ -16,11 +16,11 @@ actor WindConductor {
 
     init() async {
         for wind in Wind.all() {
-            self.winds.append(wind)
-            self.history.append(wind)
+            self.winds.reappend(wind)
+            self.history.reappend(wind)
         }
         guard self.winds.count != 0 else { fatalError() }
-        if let top = await Wind.top() { self.history.append(top) } else { fatalError() }
+        if let top = await Wind.top() { self.history.reappend(top) } else { fatalError() }
 
         for app in NSWorkspace.shared.runningApplications {
             guard app.activationPolicy == .regular else { continue }
@@ -100,8 +100,8 @@ actor WindConductor {
         }
 
         guard let top = await Wind.top(pid: pid) else { return }
-        self.history.append(top)
-        self.winds.append(top, deleteExisting: false)
+        self.history.reappend(top)
+        self.winds.append(top)
         if self.inCatalog {
             await self.undoCatalog()
             await self.raise(win: top, updateHistory: false)
@@ -114,8 +114,8 @@ actor WindConductor {
             return
         }
 
-        self.history.append(wind)
-        self.winds.append(wind, deleteExisting: false)
+        self.history.reappend(wind)
+        self.winds.append(wind)
         if self.inCatalog {
             await self.undoCatalog()
             await self.raise(win: wind, updateHistory: false)
@@ -149,7 +149,7 @@ actor WindConductor {
         guard !self.inCatalog else { return }  // todo upgrade
         guard !self.winds.isEmpty else { return }
         assert(self.winds.count == self.history.count)
-        self.winds.insert(at: index, self.history.last!)
+        self.winds.reinsert(at: index, self.history.last!)
     }
 
     func doPrev() async {
@@ -223,7 +223,7 @@ actor WindConductor {
     }
 
     func raise(win wind: Wind, updateHistory: Bool = true) async {
-        if updateHistory { self.history.append(wind) }
+        if updateHistory { self.history.reappend(wind) }
 
         let app = NSRunningApplication(processIdentifier: wind.pid())!
         if app != NSWorkspace.shared.frontmostApplication {

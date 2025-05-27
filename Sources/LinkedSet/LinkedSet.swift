@@ -8,13 +8,10 @@ struct LinkedSet<Element> where Element: Hashable {
 
     var count: Int { self.items.count }
 
-    mutating func append(_ item: Element, deleteExisting: Bool = true) {
-        if nil != self.items[item] {
-            if !deleteExisting { return }
-            self.delete(item)
-        }
+    mutating func append(_ item: Element) {
+        guard self.items[item] == nil else { return }
 
-        if self.items.isEmpty {
+        guard !self.items.isEmpty else {
             let cur = self.alloc(elem: item, prev: nil, next: nil)
             self.start = cur
             self.end = cur
@@ -26,29 +23,13 @@ struct LinkedSet<Element> where Element: Hashable {
         self.end = cur
     }
 
-    mutating func prepend(_ item: Element, deleteExisting: Bool = true) {
-        if nil != self.items[item] {
-            if !deleteExisting { return }
-            self.delete(item)
-        }
-
-        if self.items.isEmpty {
-            let cur = self.alloc(elem: item, prev: nil, next: nil)
-            self.start = cur
-            self.end = cur
-            return
-        }
-
-        let cur = self.alloc(elem: item, prev: nil, next: self.start)
-        self.mem[self.start!].prev = cur
-        self.start = cur
+    mutating func reappend(_ item: Element) {
+        if self.items[item] != nil { self.delete(item) }
+        self.append(item)
     }
 
-    mutating func insert(at index: Int, _ item: Element, deleteExisting: Bool = true) {
-        if nil != self.items[item] {
-            if !deleteExisting { return }
-            self.delete(item)
-        }
+    mutating func reinsert(at index: Int, _ item: Element) {
+        if self.items[item] != nil { self.delete(item) }
 
         if self.items.isEmpty {
             let cur = self.alloc(elem: item, prev: nil, next: nil)
