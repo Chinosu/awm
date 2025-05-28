@@ -24,7 +24,12 @@ struct LinkedSet<Element> where Element: Hashable {
     }
 
     mutating func reappend(_ item: Element) {
-        if self.items[item] != nil { self.delete(item) }
+        if self.items[item] != nil {
+            self.delete(item)
+        } else {
+            print("append new to history")
+        }
+
         self.append(item)
     }
 

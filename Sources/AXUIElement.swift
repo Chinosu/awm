@@ -74,7 +74,7 @@ public enum AXErr: Error {
 }
 
 @inlinable
-func ch(_ result: AXError) throws {
+func ax(_ result: AXError) throws {
     if result != .success {
         throw AXErr(result)
     }
@@ -84,21 +84,21 @@ extension AXUIElement {
     @inlinable
     func attributes() throws -> [String] {
         var value: CFArray?
-        try ch(AXUIElementCopyAttributeNames(self, &value))
+        try ax(AXUIElementCopyAttributeNames(self, &value))
         return value as! [String]
     }
 
     @inlinable
     func actions() throws -> [String] {
         var value: CFArray?
-        try ch(AXUIElementCopyActionNames(self, &value))
+        try ax(AXUIElementCopyActionNames(self, &value))
         return value as! [String]
     }
 
     @inlinable
     func main() throws -> Bool {
         var value: AnyObject?
-        try ch(AXUIElementCopyAttributeValue(self, kAXMainAttribute as CFString, &value))
+        try ax(AXUIElementCopyAttributeValue(self, kAXMainAttribute as CFString, &value))
         let main = value as! Int
         assert(main == 0 || main == 1)
         return main != 0
@@ -107,21 +107,21 @@ extension AXUIElement {
     @inlinable
     func title() throws -> String {
         var value: AnyObject?
-        try ch(AXUIElementCopyAttributeValue(self, kAXTitleAttribute as CFString, &value))
+        try ax(AXUIElementCopyAttributeValue(self, kAXTitleAttribute as CFString, &value))
         return value as! String
     }
 
     @inlinable
     func pid() throws -> pid_t {
         var pid = pid_t()
-        try ch(AXUIElementGetPid(self, &pid))
+        try ax(AXUIElementGetPid(self, &pid))
         return pid
     }
 
     @inlinable
     func position() throws -> CGPoint {
         var value: AnyObject?
-        try ch(AXUIElementCopyAttributeValue(self, kAXPositionAttribute as CFString, &value))
+        try ax(AXUIElementCopyAttributeValue(self, kAXPositionAttribute as CFString, &value))
 
         var point = CGPoint()
         guard AXValueGetValue(value as! AXValue, .cgPoint, &point) else { preconditionFailure() }
@@ -132,13 +132,13 @@ extension AXUIElement {
     func position(set new: CGPoint) throws {
         var point = new
         guard let value = AXValueCreate(.cgPoint, &point) else { preconditionFailure() }
-        try ch(AXUIElementSetAttributeValue(self, kAXPositionAttribute as CFString, value))
+        try ax(AXUIElementSetAttributeValue(self, kAXPositionAttribute as CFString, value))
     }
 
     @inlinable
     func size() throws -> CGSize {
         var value: AnyObject?
-        try ch(AXUIElementCopyAttributeValue(self, kAXSizeAttribute as CFString, &value))
+        try ax(AXUIElementCopyAttributeValue(self, kAXSizeAttribute as CFString, &value))
 
         var size = CGSize()
         guard AXValueGetValue(value as! AXValue, .cgSize, &size) else { preconditionFailure() }
@@ -149,19 +149,19 @@ extension AXUIElement {
     func size(set new: CGSize) throws {
         var size = new
         guard let value = AXValueCreate(.cgSize, &size) else { preconditionFailure() }
-        try ch(AXUIElementSetAttributeValue(self, kAXSizeAttribute as CFString, value))
+        try ax(AXUIElementSetAttributeValue(self, kAXSizeAttribute as CFString, value))
     }
 
     @inlinable
     func alive() -> Bool {
         var value: AnyObject?
         return nil
-            != (try? ch(AXUIElementCopyAttributeValue(self, kAXTitleAttribute as CFString, &value)))
+            != (try? ax(AXUIElementCopyAttributeValue(self, kAXTitleAttribute as CFString, &value)))
     }
 
     @inlinable
     func raise() throws {
-        try ch(AXUIElementPerformAction(self, kAXRaiseAction as CFString))
+        try ax(AXUIElementPerformAction(self, kAXRaiseAction as CFString))
     }
 
     @inlinable
@@ -176,7 +176,7 @@ extension AXUIElement {
         var value: AnyObject?
         while true {
             do {
-                try ch(
+                try ax(
                     AXUIElementCopyAttributeValue(
                         app, kAXFocusedWindowAttribute as CFString, &value))
             } catch AXErr.cannotComplete {
@@ -198,10 +198,10 @@ extension AXUIElement {
 
         for app in NSWorkspace.shared.runningApplications {
             if app.activationPolicy != .regular { continue }
-            let ax = AXUIElementCreateApplication(app.processIdentifier)
+            let axapp = AXUIElementCreateApplication(app.processIdentifier)
 
             var value: AnyObject?
-            try ch(AXUIElementCopyAttributeValue(ax, kAXWindowsAttribute as CFString, &value))
+            try ax(AXUIElementCopyAttributeValue(axapp, kAXWindowsAttribute as CFString, &value))
             let w = value as! [AXUIElement]
 
             if app.bundleIdentifier == "com.apple.finder" {
@@ -219,7 +219,7 @@ extension AXUIElement {
     @inlinable
     subscript(position: String) -> AnyObject? {
         var value: AnyObject?
-        if nil == (try? ch(AXUIElementCopyAttributeValue(self, position as CFString, &value))) {
+        if nil == (try? ax(AXUIElementCopyAttributeValue(self, position as CFString, &value))) {
             return nil
         }
         return value

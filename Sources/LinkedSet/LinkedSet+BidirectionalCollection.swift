@@ -30,24 +30,51 @@ extension LinkedSet: BidirectionalCollection {
     }
 
     subscript(position: Int) -> Element {
-        precondition(position < self.count)
+        get {
+            precondition(position < self.count)
 
-        if position <= self.count / 2 {
-            var count = 0
-            var i = self.start!
-            while count < position {
-                i = self.mem[i].next!
-                count += 1
+            if position <= self.count / 2 {
+                var count = 0
+                var i = self.start!
+                while count < position {
+                    i = self.mem[i].next!
+                    count += 1
+                }
+                return self.mem[i].elem
+            } else {
+                var count = self.count - 1
+                var i = self.end!
+                while count > position {
+                    i = self.mem[i].prev!
+                    count -= 1
+                }
+                return self.mem[i].elem
             }
-            return self.mem[i].elem
-        } else {
-            var count = self.count - 1
-            var i = self.end!
-            while count > position {
-                i = self.mem[i].prev!
-                count -= 1
+        }
+        set {
+            precondition(position < self.count)
+
+            if position <= self.count / 2 {
+                var count = 0
+                var i = self.start!
+                while count < position {
+                    i = self.mem[i].next!
+                    count += 1
+                }
+                let old_i = self.items.removeValue(forKey: self.mem[i].elem)!
+                self.mem[i].elem = newValue
+                self.items[self.mem[i].elem] = old_i
+            } else {
+                var count = self.count - 1
+                var i = self.end!
+                while count > position {
+                    i = self.mem[i].prev!
+                    count -= 1
+                }
+                let old_i = self.items.removeValue(forKey: self.mem[i].elem)!
+                self.mem[i].elem = newValue
+                self.items[self.mem[i].elem] = old_i
             }
-            return self.mem[i].elem
         }
     }
 

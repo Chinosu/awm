@@ -88,6 +88,8 @@ private func keyDispatch(
     case (.keyDown, kVK_Escape, false, (false, true, false)): Task { await wc.doWindsCatalog() }
     case (.keyDown, kVK_Escape, true, (false, true, false)): break
 
+    // case (.keyDown, kVK_ANSI_Quote, _, (false, true, false)): print("hiii")
+
     default: return Unmanaged.passUnretained(event)
     }
 

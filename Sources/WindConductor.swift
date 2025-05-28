@@ -2,7 +2,10 @@ import AppKit
 
 actor WindConductor {
     var winds: [AXUIElement] = []
-    var history: [AXUIElement] = []
+    var free: [Int] = []
+
+    var order: [Int] = []
+    var recent: [Int] = []
 
     var windObservers = [pid_t: AXObserver]()
     var launchAppObserver: (any NSObjectProtocol)?
@@ -10,21 +13,20 @@ actor WindConductor {
     var terminateAppObserver: (any NSObjectProtocol)?
 
     var suppressUpdate = 0
-    var catalog = [(AXUIElement, CGPoint, CGSize)]()
+    var catalog = [(Int, CGPoint, CGSize)]()
     var inCatalog: Bool { !catalog.isEmpty }
     var catalogRearranged = false
 
     init() async {
         for wind in try! AXUIElement.allWinds() {
-            self.winds.reappend(wind)
-            self.history.reappend(wind)
+            let i = self.ini(wind: wind)
+            self.order.reappend(i)
+            self.recent.reappend(i)
         }
-        guard self.winds.count != 0 else { fatalError() }
-        if let top = try! await AXUIElement.topWind() {
-            self.history.reappend(top)
-        } else {
-            fatalError()
-        }
+        guard self.order.count != 0 else { fatalError() }
+        guard let top = try! await AXUIElement.topWind() else { fatalError() }
+        let i = self.ini(wind: top)
+        self.recent.reappend(i)
 
         for app in NSWorkspace.shared.runningApplications {
             guard app.activationPolicy == .regular else { continue }
@@ -104,11 +106,14 @@ actor WindConductor {
         }
 
         guard let top = try! await AXUIElement.topWind(of: pid) else { return }
-        self.history.reappend(top)
-        self.winds.append(top)
+        let i = self.ini(wind: top)
+
+        self.recent.reappend(i)
+        self.order.uappend(i)
+
         if self.inCatalog {
             await self.undoCatalog()
-            await self.raise(win: top, updateHistory: false)
+            await self.raise(wind: i, updateHistory: false)
         }
     }
 
@@ -118,42 +123,54 @@ actor WindConductor {
             return
         }
 
-        self.history.reappend(wind)
-        self.winds.append(wind)
+        let i = self.ini(wind: wind)
+        self.recent.reappend(i)
+        self.order.uappend(i)
+
         if self.inCatalog {
             await self.undoCatalog()
-            await self.raise(win: wind, updateHistory: false)
+            await self.raise(wind: i, updateHistory: false)
         }
     }
 
     func pruneWinds() {
-        self.winds.removeAll(where: { !$0.alive() })
-        self.history.removeAll(where: { !$0.alive() })
-        self.catalog.removeAll(where: { !$0.0.alive() })
+        var gone = Set<Int>()
+        for (i, wind) in self.winds.enumerated() {
+            if self.free.contains(i) { continue }
+            if !wind.alive() {
+                gone.insert(i)
+                self.del(wind: i)
+            }
+        }
+
+        self.order.removeAll(where: { gone.contains($0) })
+        self.recent.removeAll(where: { gone.contains($0) })
+        assert(self.order.count == self.recent.count, "\(self.order) vs \(self.recent)")
+        self.catalog.removeAll(where: { gone.contains($0.0) })
     }
 
     func doRaise(index: Int) async {
         self.pruneWinds()
 
         guard !self.inCatalog else {
-            let order = if self.catalogRearranged { self.winds } else { self.history }
+            let order = if self.catalogRearranged { self.order } else { self.recent }
             guard 0 <= index && index < order.count else { return }
             await self.undoCatalog()
-            await self.raise(win: order[index])
+            await self.raise(wind: order[index])
             return
         }
 
-        guard 0 <= index && index < self.winds.count else { return }
-        await self.raise(win: self.winds[index])
+        guard 0 <= index && index < self.order.count else { return }
+        await self.raise(wind: self.order[index])
     }
 
     func doRearrange(index: Int) async {
         self.pruneWinds()
 
         guard !self.inCatalog else { return }  // todo upgrade
-        guard !self.winds.isEmpty else { return }
-        assert(self.winds.count == self.history.count)
-        self.winds.reinsert(self.history.last!, at: index)
+        guard !self.order.isEmpty else { return }
+        assert(self.order.count == self.recent.count)
+        self.order.reinsert(self.recent.last!, at: index)
     }
 
     func doPrev() async {
@@ -161,42 +178,40 @@ actor WindConductor {
 
         guard !self.inCatalog else { return }
 
-        guard self.history.count >= 2 else { return }
-        await self.raise(win: self.history[self.history.count - 2])
+        guard self.recent.count >= 2 else { return }
+        await self.raise(wind: self.recent[self.recent.count - 2])
     }
 
     func doHistCatalog() async {
         self.pruneWinds()
-        guard self.winds.count != 0 else { return }
-        print("[\(self.winds.count)]")
-
+        guard self.order.count != 0 else { return }
         guard !self.inCatalog else { return await self.undoCatalog() }
 
-        assert(self.history.count == self.winds.count)
+        assert(self.recent.count == self.order.count)
 
-        for (i, wind) in self.history.enumerated() {
-            self.catalog.append((wind, try! wind.position(), try! wind.size()))
-            try! wind.position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
-            try! wind.size(set: CGSize(width: 1000, height: 1000))
+        for (i, w) in self.recent.enumerated() {
+            self.catalog.append((w, try! self.winds[w].position(), try! self.winds[w].size()))
+            try! self.winds[w].position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
+            try! self.winds[w].size(set: CGSize(width: 1000, height: 1000))
         }
     }
 
     func doWindsCatalog() async {
         self.pruneWinds()
-        guard self.winds.count != 0 else { return }
+        guard self.order.count != 0 else { return }
         guard !self.inCatalog else { return await self.undoCatalog() }
 
-        assert(self.history.count == self.winds.count)
+        assert(self.recent.count == self.order.count)
 
-        for wind in self.history {
-            self.catalog.append((wind, try! wind.position(), try! wind.size()))
+        for w in self.recent {
+            self.catalog.append((w, try! self.winds[w].position(), try! self.winds[w].size()))
         }
-        for (i, wind) in self.winds.enumerated() {
-            try! wind.position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
-            try! wind.size(set: CGSize(width: 1000, height: 1000))
+        for (i, w) in self.order.enumerated() {
+            try! self.winds[w].position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
+            try! self.winds[w].size(set: CGSize(width: 1000, height: 1000))
         }
-        for wind in self.winds {
-            await self.raise(win: wind, updateHistory: false)
+        for w in self.order {
+            await self.raise(wind: w, updateHistory: false)
             try! await Task.sleep(for: .milliseconds(50))
         }
 
@@ -207,14 +222,14 @@ actor WindConductor {
         guard self.inCatalog else { return }
         // guard let top = await Wind.top() else { return }
 
-        for (wind, position, size) in self.catalog {
-            try! wind.position(set: position)
-            try! wind.size(set: size)
+        for (w, position, size) in self.catalog {
+            try! self.winds[w].position(set: position)
+            try! self.winds[w].size(set: size)
         }
 
         if self.catalogRearranged {
-            for (wind, _, _) in catalog {
-                await self.raise(win: wind, updateHistory: false)
+            for (w, _, _) in catalog {
+                await self.raise(wind: w, updateHistory: false)
                 try! await Task.sleep(for: .milliseconds(50))
             }
         }
@@ -228,18 +243,18 @@ actor WindConductor {
         self.catalogRearranged = false
     }
 
-    func raise(win wind: AXUIElement, updateHistory: Bool = true) async {
-        if updateHistory { self.history.reappend(wind) }
+    func raise(wind w: Int, updateHistory: Bool = true) async {
+        if updateHistory { self.recent.reappend(w) }
 
-        let app = NSRunningApplication(processIdentifier: try! wind.pid())!
+        let app = NSRunningApplication(processIdentifier: try! self.winds[w].pid())!
         if app != NSWorkspace.shared.frontmostApplication {
             self.suppressUpdate += 2
             app.activate()
-            try! wind.raise()
+            try! self.winds[w].raise()
         } else {
-            if try! await AXUIElement.topWind() != wind {
+            if try! await AXUIElement.topWind() != self.winds[w] {
                 self.suppressUpdate += 1
-                try! wind.raise()
+                try! self.winds[w].raise()
             }
         }
     }
@@ -247,8 +262,18 @@ actor WindConductor {
     func observe(pid: pid_t) {
         var observer: AXObserver?
         switch NSRunningApplication(processIdentifier: pid)!.bundleIdentifier {
+        // case "com.apple.Terminal":
+        case "com.mitchellh.ghostty":
+            try! ax(
+                AXObserverCreate(
+                    pid,
+                    { ob, elem, noti, ptr in
+                        let wc = Unmanaged<WindConductor>.fromOpaque(ptr!).takeUnretainedValue()
+                        nonisolated(unsafe) let e = elem
+                        Task { @Sendable in await wc.onActivateGhosttyWindow(elem: e) }
+                    }, &observer))
         default:
-            check(
+            try! ax(
                 AXObserverCreate(
                     pid,
                     { ob, elem, noti, ptr in
@@ -258,7 +283,7 @@ actor WindConductor {
                     }, &observer))
         }
 
-        check(
+        try! ax(
             AXObserverAddNotification(
                 observer!, AXUIElementCreateApplication(pid),
                 kAXMainWindowChangedNotification as CFString,
@@ -291,11 +316,146 @@ actor WindConductor {
         assert(
             !CFRunLoopContainsSource(
                 CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode))
-        check(self.windObservers.removeValue(forKey: app.processIdentifier))
+        if nil == self.windObservers.removeValue(forKey: app.processIdentifier) {
+            assertionFailure()
+        }
     }
 
     func onActivateWindow(elem: AXUIElement) async {
         await self.updateHistory(wind: elem)
+    }
+
+    var elems = [AXUIElement]()
+
+    var toolbars = Set<AXUIElement>()
+    var containers = Set<AXUIElement>()
+    var contents = Set<AXUIElement>()
+
+    var seen = Set<AXUIElement>()
+    func onActivateGhosttyWindow(elem: AXUIElement) async {
+        var pid = pid_t()
+        AXUIElementGetPid(elem, &pid)
+
+        let app = AXUIElementCreateApplication(pid)
+
+        print("\u{1b}[2J\u{1b}[H", terminator: "")
+
+        let menubar = app["AXMenuBar"] as! AXUIElement
+        elems.append(menubar)
+        print("menubar: (\(elems.firstIndex(of: menubar)!))")
+
+        // ordered by creation (menubar always first)
+        let orderedchildren = app["AXChildrenInNavigationOrder"] as! [AXUIElement]
+        elems.append(contentsOf: orderedchildren)
+        print("orderedChildren: ", terminator: "")
+        for w in orderedchildren { print("(\(elems.firstIndex(of: w)!)) ", terminator: "") }
+        print()
+
+        // ordered by recency (menubar always last)
+        let children = app["AXChildren"] as! [AXUIElement]
+        elems.append(contentsOf: children)
+        print("children: ", terminator: "")
+        for w in children { print("(\(elems.firstIndex(of: w)!)) ", terminator: "") }
+        print()
+
+        // ordered by recency
+        let windows = app["AXWindows"] as! [AXUIElement]
+        elems.append(contentsOf: windows)
+        print("windows: ", terminator: "")
+        for w in windows { print("(\(elems.firstIndex(of: w)!)) ", terminator: "") }
+        print()
+
+        let mainwindow = app["AXMainWindow"] as! AXUIElement
+        elems.append(mainwindow)
+        print("mainwindow: (\(elems.firstIndex(of: mainwindow)!))")
+
+        let focusedwindow = app["AXFocusedWindow"] as! AXUIElement
+        elems.append(focusedwindow)
+        print("focusedwindow: (\(elems.firstIndex(of: focusedwindow)!))")
+
+        let focused = elem["AXFocused"] as! Int
+        print("focused: \(focused)")
+
+        let main = elem["AXMain"] as! Int
+        print("main: \(main)")
+
+        let AXChildren = elem["AXChildren"] as! [AXUIElement]
+        print(">> AXChildren \(AXChildren)")
+        let AXSections = elem["AXSections"]
+        print(">> AXSections \(AXSections, default: "nil")")
+        let AXActivationPoint = elem["AXActivationPoint"]
+        print(">> AXActivationPoint \(AXActivationPoint, default: "nil")")
+        let AXParent = elem["AXParent"]
+        print(">> AXParent \(AXParent, default: "nil")")
+        let AXFullScreenButton = elem["AXFullScreenButton"]
+        print(">> AXFullScreenButton \(AXFullScreenButton, default: "nil")")
+        let AXCloseButton = elem["AXCloseButton"]
+        print(">> AXCloseButton \(AXCloseButton, default: "nil")")
+        let AXMinimizeButton = elem["AXMinimizeButton"]
+        print(">> AXMinimizeButton \(AXMinimizeButton, default: "nil")")
+
+        assert(mainwindow == focusedwindow)
+        assert(focusedwindow == elem)
+
+        let nthRecent = windows.firstIndex(of: elem)!
+        var old: AXUIElement!
+        var n = 0
+        for i in stride(from: self.recent.count - 1, through: 0, by: -1) {
+            var i_pid = pid_t()
+            try! ax(AXUIElementGetPid(self.winds[self.recent[i]], &i_pid))
+            if i_pid != pid { continue }
+            if n != nthRecent {
+                n += 1
+                continue
+            }
+
+            old = self.winds[self.recent[i]]
+            self.winds[self.recent[i]] = elem
+        }
+
+        for i in 0..<self.order.count {
+            if self.winds[self.order[i]] == old {
+                self.winds[self.order[i]] = elem
+                break
+            }
+        }
+
+        await self.updateHistory(wind: elem)
+
+        do {
+            for w in windows {
+                seen.insert(w)
+            }
+
+            seen = seen.filter({ $0["AXMain"] != nil })
+            for w in seen {
+                print("- \(w) \(w["AXMain"] as Any)")
+            }
+
+            /*
+            Strategy
+            --------
+            - store previous `AXMain` to track last window
+            - use count of `AXChildren` (5 vs 6) to determine if the new window is actually a new window
+            */
+        }
+    }
+
+    func ini(wind: AXUIElement) -> Int {
+        if let i = self.winds.firstIndex(of: wind) { return i }
+
+        if let i = self.free.popLast() {
+            // assert(self.winds[i].isEmpty)
+            self.winds[i] = wind
+            return i
+        } else {
+            self.winds.append(wind)
+            return self.winds.count - 1
+        }
+    }
+
+    func del(wind: Int) {
+        self.free.append(wind)
     }
 }
 
@@ -306,9 +466,18 @@ extension Array where Element: Equatable {
         self.append(newElement)
     }
 
+    mutating func uappend(_ newElement: Element) {
+        precondition(self.firstIndex(of: newElement) == self.lastIndex(of: newElement))
+        if self.firstIndex(of: newElement) == nil {
+            self.append(newElement)
+        }
+    }
+
     mutating func reinsert(_ newElement: Element, at: Int) {
         precondition(self.firstIndex(of: newElement) == self.lastIndex(of: newElement))
         if let index = self.firstIndex(of: newElement) { self.remove(at: index) }
         self.insert(newElement, at: at)
     }
 }
+
+nonisolated(unsafe) private var ghosttyLastIndex: Int = -1
