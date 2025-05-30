@@ -206,6 +206,7 @@ extension AXUIElement {
         return (value as! AXUIElement)
     }
 
+    // TODO REMOVE
     @inlinable
     static func allTabs() throws -> [AXUIElement] {
         var winds = [AXUIElement]()

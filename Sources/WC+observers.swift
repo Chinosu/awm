@@ -80,6 +80,21 @@ extension WC {
         do {
             let w = recent.last!
             let last = winds[w].last!
+
+            let app = AXUIElementCreateApplication(pid)
+            var value: AnyObject?
+            while true {
+                do {
+                    try ax(
+                        AXUIElementCopyAttributeValue(
+                            app, kAXFocusedWindowAttribute as CFString, &value))
+                } catch AXErr.cannotComplete, AXErr.noValue {
+                    try! await Task.sleep(for: .milliseconds(128))
+                    continue
+                } catch { preconditionFailure("\(error)") }
+                break
+            }
+
             try! await Task.sleep(for: .milliseconds(8.5))
 
             // if data structure has changed, the tab activate handler
@@ -88,6 +103,8 @@ extension WC {
             guard w == recent.last! && last == winds[recent.last!].last! else { return }
         }
 
+        print("[*] \(Date().timeIntervalSince1970)")
+
         if let i = recent.lastIndex(where: { pids[$0] == pid }) {
             let w = recent.remove(at: i)
             recent.append(w)
@@ -95,8 +112,9 @@ extension WC {
             // a new app just launched
             // insert the new window into the data structure
             nonisolated(unsafe) let new = try! await AXUIElement.topTab(of: pid)!
-            assert(winds.allSatisfy({ @Sendable in !$0.contains(new) }))
-            assert(!pids.contains(pid))
+            assert((try? new.role()) == kAXWindowRole)
+            // assert(winds.allSatisfy({ @Sendable in !$0.contains(new) }))
+            assert(!pids.contains(pid), "found \(pid) in \(pids)")
 
             if let w = free.popFirst() {
                 winds[w] = [new]
@@ -117,7 +135,6 @@ extension WC {
             }
         }
 
-        print("[*] \(Date().timeIntervalSince1970)")
         await debug()
     }
 
@@ -130,7 +147,9 @@ extension WC {
         }
 
         nonisolated(unsafe) let tab = tab
-        guard (try? tab.role()) == "AXWindow" else { return }
+        guard (try? tab.role()) == kAXWindowRole else { return }
+
+        print("[ ] \(Date().timeIntervalSince1970)")
 
         if let i = recent.lastIndex(where: { winds[$0].contains(tab) }) {
             let w = recent.remove(at: i)
@@ -164,8 +183,6 @@ extension WC {
             // recent.remove(at: recent.lastIndex(of: w)!)
             // recent.append(w)
         }
-
-        print("[ ] \(Date().timeIntervalSince1970)")
 
         // var pid = pid_t()
         // try! ax(AXUIElementGetPid(tab, &pid))

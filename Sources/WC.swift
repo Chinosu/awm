@@ -13,8 +13,15 @@ actor WC {
     var suppressTabActivate = 0
 
     init() async {
-        winds.append(contentsOf: (try! AXUIElement.allTabs()).lazy.map({ [$0] }))
-        pids.append(contentsOf: winds.lazy.map({ try! $0[0].pid() }))
+        for app in NSWorkspace.shared.runningApplications {
+            if app.activationPolicy != .regular { continue }
+            let axapp = AXUIElementCreateApplication(app.processIdentifier)
+            for wind in axapp[kAXWindowsAttribute] as! [AXUIElement] {
+                guard (try? wind.role()) == kAXWindowRole else { continue }
+                winds.append([wind])
+                pids.append(app.processIdentifier)
+            }
+        }
         precondition(!winds.isEmpty && !pids.isEmpty)
 
         canon.append(contentsOf: winds.indices)
