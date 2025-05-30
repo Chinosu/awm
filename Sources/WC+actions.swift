@@ -8,6 +8,8 @@ extension WC {
 
         await raise(wind: canon[index])
         recent.append(recent.remove(at: recent.lastIndex(of: canon[index])!))
+
+        await debug()
     }
 
     func prevAction() async {
@@ -17,5 +19,7 @@ extension WC {
         let w = recent.remove(at: recent.count - 2)
         await raise(wind: w)
         recent.append(w)
+
+        await debug()
     }
 }

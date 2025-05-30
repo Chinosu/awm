@@ -118,6 +118,7 @@ extension WC {
         }
 
         print("[*] \(Date().timeIntervalSince1970)")
+        await debug()
     }
 
     func onTabActivate(_ tab: AXUIElement) async {
@@ -129,6 +130,7 @@ extension WC {
         }
 
         nonisolated(unsafe) let tab = tab
+        guard (try? tab.role()) == "AXWindow" else { return }
 
         if let i = recent.lastIndex(where: { winds[$0].contains(tab) }) {
             let w = recent.remove(at: i)
@@ -182,5 +184,7 @@ extension WC {
 
         // // if winds.contains(where: { $0.contains(tab) }) { return }
         // if suspicious { print("this window has evil tabs!") }
+
+        await debug()
     }
 }

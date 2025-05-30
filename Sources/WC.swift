@@ -55,4 +55,16 @@ actor WC {
         let delta = free.count - count
         if delta != 0 { print("-\(delta) tab(s)") }
     }
+
+    func debug() async {
+        print("debug!")
+        print("recen: \(recent)")
+        for w in recent {
+            let title = (try? winds[w].last!.title()) ?? "(/)"
+            let role = (try? winds[w].last!.role()) ?? "(/)"
+            print("- '\(title)' '\(role)'")
+
+        }
+        print()
+    }
 }
