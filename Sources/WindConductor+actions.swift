@@ -26,9 +26,35 @@ extension WC {
 
     func reorderAction(index: Int) async {
         await prune()
+        info("reorder")
 
-        assert(!recent.isEmpty)
+        if recent.isEmpty { return }
+
         assert(canon.contains(recent.last!))
         canon.insert(canon.remove(at: canon.lastIndex(of: recent.last!)!), at: index)
+    }
+
+    func leftAction() async {
+        await prune()
+        info("left")
+
+        if recent.isEmpty { return }
+
+        let i = canon.lastIndex(of: recent.last!)!
+        let w = canon[(i - 1 + canon.count) % canon.count]
+        await raise(wind: w)
+        recent.append(recent.remove(at: recent.lastIndex(of: w)!))
+    }
+
+    func rightAction() async {
+        await prune()
+        info("right")
+
+        if recent.isEmpty { return }
+
+        let i = canon.lastIndex(of: recent.last!)!
+        let w = canon[(i + 1) % canon.count]
+        await raise(wind: w)
+        recent.append(recent.remove(at: recent.lastIndex(of: w)!))
     }
 }

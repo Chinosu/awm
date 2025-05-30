@@ -113,6 +113,11 @@ private func keyDispatch(
     case (.keyDown, kVK_Tab, true, (false, true, true)):
         break
 
+    case (.keyDown, kVK_ANSI_A, _, (false, true, true)):
+        Task { await wc.leftAction() }
+    case (.keyDown, kVK_ANSI_D, _, (false, true, true)):
+        Task { await wc.rightAction() }
+
     // case (.keyDown, kVK_ANSI_Grave, false, (false, true, false)): Task { await wc.doHistCatalog() }
     // case (.keyDown, kVK_ANSI_Grave, true, (false, true, false)):
     // break

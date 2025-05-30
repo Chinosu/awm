@@ -158,18 +158,18 @@ extension WC {
             assert(pids[w] == NSWorkspace.shared.frontmostApplication?.processIdentifier)
             recent.append(w)
 
-            if let last = winds[w].lastIndex(of: tab) {
+            if let last = winds[w].lastIndex(of: tab), winds[w].count > 1 {
                 winds[w].append(winds[w].remove(at: last))
             }
         } else {
             let pid = try! tab.pid()
 
             let childs = tab[kAXChildrenAttribute] as! [AXUIElement]
-            let sus = childs.contains(where: { ch in
+            let suspicious = childs.contains(where: { ch in
                 (try? ch.role()) == kAXTabGroupRole && (try? ch.title()) == "tab bar"
             })
 
-            if sus {
+            if suspicious {
                 let w = recent.last(where: { w in pids[w] == pid })!
                 winds[w].append(tab)
             } else {
