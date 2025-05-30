@@ -23,4 +23,12 @@ extension WC {
 
         await debug()
     }
+
+    func reorderAction(index: Int) async {
+        await prune()
+
+        assert(!recent.isEmpty)
+        assert(canon.contains(recent.last!))
+        canon.insert(canon.remove(at: canon.lastIndex(of: recent.last!)!), at: index)
+    }
 }
