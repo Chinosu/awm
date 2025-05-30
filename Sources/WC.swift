@@ -64,14 +64,21 @@ actor WC {
     }
 
     func debug() async {
-        // print("debug!")
-        // print("recen: \(recent)")
-        // for w in recent {
-        //     let title = (try? winds[w].last!.title()) ?? "(/)"
-        //     let role = (try? winds[w].last!.role()) ?? "(/)"
-        //     print("- '\(title)' '\(role)'")
-
-        // }
-        // print()
+        print("debug!")
+        print("recen: \(recent)")
+        for w in recent {
+            for (i, wind) in winds[w].enumerated() {
+                if i == 0 {
+                    print(
+                        "- [\(try? wind.title(), default: "(/)")] [\(try? wind.role(), default: "(/)")]"
+                    )
+                } else {
+                    print(
+                        "  [\(try? wind.title(), default: "(/)")] [\(try? wind.role(), default: "(/)")]"
+                    )
+                }
+            }
+        }
+        print()
     }
 }

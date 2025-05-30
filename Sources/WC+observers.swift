@@ -76,6 +76,8 @@ extension WC {
             return
         }
 
+        await prune()
+
         do {
             let w = recent.last!
             let last = winds[w].last!
@@ -110,13 +112,13 @@ extension WC {
         } else {
             // a new app just launched
             // insert the new window into the data structure
-            let new = try! await AXUIElement.topTab(of: pid)!
-            assert((try? new.role()) == kAXWindowRole)
-            for wind in winds { assert(!wind.contains(new)) }
+            let tab = try! await AXUIElement.topTab(of: pid)!
+            assert((try? tab.role()) == kAXWindowRole)
+            for wind in winds { assert(!wind.contains(tab)) }
             assert(!pids.contains(pid), "found \(pid) in \(pids)")
 
             if let w = free.popFirst() {
-                winds[w] = [new]
+                winds[w] = [tab]
                 pids[w] = pid
                 assert(winds.count == pids.count)
 
@@ -124,7 +126,7 @@ extension WC {
                 recent.append(w)
                 assert(canon.count == recent.count)
             } else {
-                winds.append([new])
+                winds.append([tab])
                 pids.append(pid)
                 assert(winds.count == pids.count)
 
@@ -144,6 +146,8 @@ extension WC {
             return
         }
 
+        await prune()
+
         nonisolated(unsafe) let tab = tab
         guard (try? tab.role()) == kAXWindowRole else { return }
 
@@ -153,52 +157,41 @@ extension WC {
             let w = recent.remove(at: i)
             assert(pids[w] == NSWorkspace.shared.frontmostApplication?.processIdentifier)
             recent.append(w)
+
+            if let last = winds[w].lastIndex(of: tab) {
+                winds[w].append(winds[w].remove(at: last))
+            }
         } else {
             let pid = try! tab.pid()
-            if let w = free.popFirst() {
-                winds[w] = [tab]
-                pids[w] = pid
-                assert(winds.count == pids.count)
 
-                canon.append(w)
-                recent.append(w)
-                assert(canon.count == recent.count)
+            let childs = tab[kAXChildrenAttribute] as! [AXUIElement]
+            let sus = childs.contains(where: { ch in
+                (try? ch.role()) == kAXTabGroupRole && (try? ch.title()) == "tab bar"
+            })
+
+            if sus {
+                let w = recent.last(where: { w in pids[w] == pid })!
+                winds[w].append(tab)
             } else {
-                winds.append([tab])
-                pids.append(pid)
-                assert(winds.count == pids.count)
+                if let w = free.popFirst() {
+                    winds[w] = [tab]
+                    pids[w] = pid
+                    assert(winds.count == pids.count)
 
-                canon.append(winds.count - 1)
-                recent.append(winds.count - 1)
-                assert(canon.count == recent.count)
+                    canon.append(w)
+                    recent.append(w)
+                    assert(canon.count == recent.count)
+                } else {
+                    winds.append([tab])
+                    pids.append(pid)
+                    assert(winds.count == pids.count)
+
+                    canon.append(winds.count - 1)
+                    recent.append(winds.count - 1)
+                    assert(canon.count == recent.count)
+                }
             }
-
-            // // updating suspicious tab
-            // let pid = try! tab.pid()
-            // let w = pids.firstIndex(of: pid)!
-            // winds[w].append(tab)
-
-            // recent.remove(at: recent.lastIndex(of: w)!)
-            // recent.append(w)
         }
-
-        // var pid = pid_t()
-        // try! ax(AXUIElementGetPid(tab, &pid))
-        // assert(pid == NSWorkspace.shared.frontmostApplication?.processIdentifier)
-
-        // // var pid = pid_t()
-        // // try! ax(AXUIElementGetPid(tab, &pid))
-        // // let app = AXUIElementCreateApplication(pid)
-        // // info(">> \(app[kAXFrontmostAttribute] as Any)")
-        // info(">> \(NSWorkspace.shared.frontmostApplication!.bundleIdentifier!)")
-
-        // let childs = tab[kAXChildrenAttribute] as! [AXUIElement]
-        // let suspicious = childs.contains(where: {
-        //     (try? $0.role()) == kAXTabGroupRole  // && (try? $0.title()) == "tab bar"
-        // })
-
-        // // if winds.contains(where: { $0.contains(tab) }) { return }
-        // if suspicious { info("this window has evil tabs!") }
 
         await debug()
     }
