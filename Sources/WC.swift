@@ -39,7 +39,7 @@ actor WC {
             suppressTabActivate += 1
             try! tab.raise()
             suppressAppActivate += 1
-            if !NSRunningApplication(processIdentifier: pid)!.activate() { assertionFailure() }
+            if !NSRunningApplication(processIdentifier: pid)!.activate() { preconditionFailure() }
         } else if try! await AXUIElement.topTab() != tab {
             suppressTabActivate += 1
             try! tab.raise()
@@ -60,18 +60,18 @@ actor WC {
         recent.removeAll(where: { free.contains($0) })
 
         let delta = free.count - count
-        if delta != 0 { print("-\(delta) tab(s)") }
+        if delta != 0 { info("-\(delta) tab(s)") }
     }
 
     func debug() async {
-        print("debug!")
-        print("recen: \(recent)")
-        for w in recent {
-            let title = (try? winds[w].last!.title()) ?? "(/)"
-            let role = (try? winds[w].last!.role()) ?? "(/)"
-            print("- '\(title)' '\(role)'")
+        // print("debug!")
+        // print("recen: \(recent)")
+        // for w in recent {
+        //     let title = (try? winds[w].last!.title()) ?? "(/)"
+        //     let role = (try? winds[w].last!.role()) ?? "(/)"
+        //     print("- '\(title)' '\(role)'")
 
-        }
-        print()
+        // }
+        // print()
     }
 }

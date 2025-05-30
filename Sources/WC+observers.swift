@@ -71,7 +71,6 @@ extension WC {
 
     func onAppActivate(_ pid: pid_t) async {
         guard suppressAppActivate == 0 else {
-            // print("[*] != \(suppressAppActivate)")
             suppressAppActivate -= 1
             assert(suppressAppActivate >= 0)
             return
@@ -103,7 +102,7 @@ extension WC {
             guard w == recent.last! && last == winds[recent.last!].last! else { return }
         }
 
-        print("[*] \(Date().timeIntervalSince1970)")
+        info("[*] \(Date().timeIntervalSince1970)")
 
         if let i = recent.lastIndex(where: { pids[$0] == pid }) {
             let w = recent.remove(at: i)
@@ -111,9 +110,9 @@ extension WC {
         } else {
             // a new app just launched
             // insert the new window into the data structure
-            nonisolated(unsafe) let new = try! await AXUIElement.topTab(of: pid)!
+            let new = try! await AXUIElement.topTab(of: pid)!
             assert((try? new.role()) == kAXWindowRole)
-            // assert(winds.allSatisfy({ @Sendable in !$0.contains(new) }))
+            for wind in winds { assert(!wind.contains(new)) }
             assert(!pids.contains(pid), "found \(pid) in \(pids)")
 
             if let w = free.popFirst() {
@@ -140,7 +139,6 @@ extension WC {
 
     func onTabActivate(_ tab: AXUIElement) async {
         guard suppressTabActivate == 0 else {
-            // print("[ ] != \(suppressTabActivate)")
             suppressTabActivate -= 1
             assert(suppressTabActivate >= 0)
             return
@@ -149,7 +147,7 @@ extension WC {
         nonisolated(unsafe) let tab = tab
         guard (try? tab.role()) == kAXWindowRole else { return }
 
-        print("[ ] \(Date().timeIntervalSince1970)")
+        info("[ ] \(Date().timeIntervalSince1970)")
 
         if let i = recent.lastIndex(where: { winds[$0].contains(tab) }) {
             let w = recent.remove(at: i)
@@ -191,8 +189,8 @@ extension WC {
         // // var pid = pid_t()
         // // try! ax(AXUIElementGetPid(tab, &pid))
         // // let app = AXUIElementCreateApplication(pid)
-        // // print(">> \(app[kAXFrontmostAttribute] as Any)")
-        // print(">> \(NSWorkspace.shared.frontmostApplication!.bundleIdentifier!)")
+        // // info(">> \(app[kAXFrontmostAttribute] as Any)")
+        // info(">> \(NSWorkspace.shared.frontmostApplication!.bundleIdentifier!)")
 
         // let childs = tab[kAXChildrenAttribute] as! [AXUIElement]
         // let suspicious = childs.contains(where: {
@@ -200,7 +198,7 @@ extension WC {
         // })
 
         // // if winds.contains(where: { $0.contains(tab) }) { return }
-        // if suspicious { print("this window has evil tabs!") }
+        // if suspicious { info("this window has evil tabs!") }
 
         await debug()
     }
