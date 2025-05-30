@@ -112,6 +112,20 @@ extension AXUIElement {
     }
 
     @inlinable
+    func role() throws -> String {
+        var value: AnyObject?
+        try ax(AXUIElementCopyAttributeValue(self, kAXRoleAttribute as CFString, &value))
+        return value as! String
+    }
+
+    @inlinable
+    func subrole() throws -> String {
+        var value: AnyObject?
+        try ax(AXUIElementCopyAttributeValue(self, kAXSubroleAttribute as CFString, &value))
+        return value as! String
+    }
+
+    @inlinable
     func pid() throws -> pid_t {
         var pid = pid_t()
         try ax(AXUIElementGetPid(self, &pid))
@@ -165,13 +179,13 @@ extension AXUIElement {
     }
 
     @inlinable
-    static func topWind() async throws -> AXUIElement? {
-        return try await Self.topWind(
+    static func topTab() async throws -> AXUIElement? {
+        return try await Self.topTab(
             of: NSWorkspace.shared.frontmostApplication!.processIdentifier)
     }
 
     @inlinable
-    static func topWind(of pid: pid_t) async throws -> AXUIElement? {
+    static func topTab(of pid: pid_t) async throws -> AXUIElement? {
         let app = AXUIElementCreateApplication(pid)
         var value: AnyObject?
         while true {
@@ -193,7 +207,7 @@ extension AXUIElement {
     }
 
     @inlinable
-    static func allWinds() throws -> [AXUIElement] {
+    static func allTabs() throws -> [AXUIElement] {
         var winds = [AXUIElement]()
 
         for app in NSWorkspace.shared.runningApplications {
@@ -204,13 +218,14 @@ extension AXUIElement {
             try ax(AXUIElementCopyAttributeValue(axapp, kAXWindowsAttribute as CFString, &value))
             let w = value as! [AXUIElement]
 
-            if app.bundleIdentifier == "com.apple.finder" {
-                // finder always has one dummy window
-                // therefore skip it
-                winds.append(contentsOf: w[1...])
-            } else {
-                winds.append(contentsOf: w)
-            }
+            // if app.bundleIdentifier == "com.apple.finder" {
+            //     // finder always has one dummy window
+            //     // therefore skip it
+            //     winds.append(contentsOf: w[1...])
+            // } else {
+            //     winds.append(contentsOf: w)
+            // }
+            winds.append(contentsOf: w)
         }
 
         return winds

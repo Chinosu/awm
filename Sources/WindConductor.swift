@@ -1,8 +1,9 @@
 import AppKit
 
 actor WindConductor {
-    var winds: [AXUIElement] = []
+    var tabs: [AXUIElement] = []
     var free: [Int] = []
+    // var winds: [[Int]] = []
 
     var order: [Int] = []
     var recent: [Int] = []
@@ -18,13 +19,13 @@ actor WindConductor {
     var catalogRearranged = false
 
     init() async {
-        for wind in try! AXUIElement.allWinds() {
+        for wind in try! AXUIElement.allTabs() {
             let i = self.ini(wind: wind)
             self.order.reappend(i)
             self.recent.reappend(i)
         }
         guard self.order.count != 0 else { fatalError() }
-        guard let top = try! await AXUIElement.topWind() else { fatalError() }
+        guard let top = try! await AXUIElement.topTab() else { fatalError() }
         let i = self.ini(wind: top)
         self.recent.reappend(i)
 
@@ -105,11 +106,11 @@ actor WindConductor {
             return
         }
 
-        guard let top = try! await AXUIElement.topWind(of: pid) else { return }
+        guard let top = try! await AXUIElement.topTab(of: pid) else { return }
         let i = self.ini(wind: top)
 
         self.recent.reappend(i)
-        self.order.uappend(i)
+        self.order.uppend(i)
 
         if self.inCatalog {
             await self.undoCatalog()
@@ -125,7 +126,7 @@ actor WindConductor {
 
         let i = self.ini(wind: wind)
         self.recent.reappend(i)
-        self.order.uappend(i)
+        self.order.uppend(i)
 
         if self.inCatalog {
             await self.undoCatalog()
@@ -135,7 +136,7 @@ actor WindConductor {
 
     func pruneWinds() {
         var gone = Set<Int>()
-        for (i, wind) in self.winds.enumerated() {
+        for (i, wind) in self.tabs.enumerated() {
             if self.free.contains(i) { continue }
             if !wind.alive() {
                 gone.insert(i)
@@ -190,9 +191,9 @@ actor WindConductor {
         assert(self.recent.count == self.order.count)
 
         for (i, w) in self.recent.enumerated() {
-            self.catalog.append((w, try! self.winds[w].position(), try! self.winds[w].size()))
-            try! self.winds[w].position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
-            try! self.winds[w].size(set: CGSize(width: 1000, height: 1000))
+            self.catalog.append((w, try! self.tabs[w].position(), try! self.tabs[w].size()))
+            try! self.tabs[w].position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
+            try! self.tabs[w].size(set: CGSize(width: 1000, height: 1000))
         }
     }
 
@@ -204,11 +205,11 @@ actor WindConductor {
         assert(self.recent.count == self.order.count)
 
         for w in self.recent {
-            self.catalog.append((w, try! self.winds[w].position(), try! self.winds[w].size()))
+            self.catalog.append((w, try! self.tabs[w].position(), try! self.tabs[w].size()))
         }
         for (i, w) in self.order.enumerated() {
-            try! self.winds[w].position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
-            try! self.winds[w].size(set: CGSize(width: 1000, height: 1000))
+            try! self.tabs[w].position(set: CGPoint(x: i * 75, y: (1 + i) * 50))
+            try! self.tabs[w].size(set: CGSize(width: 1000, height: 1000))
         }
         for w in self.order {
             await self.raise(wind: w, updateHistory: false)
@@ -223,8 +224,8 @@ actor WindConductor {
         // guard let top = await Wind.top() else { return }
 
         for (w, position, size) in self.catalog {
-            try! self.winds[w].position(set: position)
-            try! self.winds[w].size(set: size)
+            try! self.tabs[w].position(set: position)
+            try! self.tabs[w].size(set: size)
         }
 
         if self.catalogRearranged {
@@ -246,15 +247,15 @@ actor WindConductor {
     func raise(wind w: Int, updateHistory: Bool = true) async {
         if updateHistory { self.recent.reappend(w) }
 
-        let app = NSRunningApplication(processIdentifier: try! self.winds[w].pid())!
+        let app = NSRunningApplication(processIdentifier: try! self.tabs[w].pid())!
         if app != NSWorkspace.shared.frontmostApplication {
             self.suppressUpdate += 2
             app.activate()
-            try! self.winds[w].raise()
+            try! self.tabs[w].raise()
         } else {
-            if try! await AXUIElement.topWind() != self.winds[w] {
+            if try! await AXUIElement.topTab() != self.tabs[w] {
                 self.suppressUpdate += 1
-                try! self.winds[w].raise()
+                try! self.tabs[w].raise()
             }
         }
     }
@@ -263,6 +264,7 @@ actor WindConductor {
         var observer: AXObserver?
         switch NSRunningApplication(processIdentifier: pid)!.bundleIdentifier {
         // case "com.apple.Terminal":
+        // case "com.apple.Safari":
         case "com.mitchellh.ghostty":
             try! ax(
                 AXObserverCreate(
@@ -327,10 +329,33 @@ actor WindConductor {
 
     var elems = [AXUIElement]()
 
+    func crashout(elem: AXUIElement) async {
+        // var pid = pid_t()
+        // if AXUIElementGetPid(elem, &pid) != .success { preconditionFailure() }
+        // let app = AXUIElementCreateApplication(pid)
+
+        /*
+        Strategy
+        --------
+        - store previous `AXMain` to track last window
+        - use count of `AXChildren` (5 vs 6) to determine if the new window is actually a new window
+        */
+
+        let elemChilds = elem[kAXChildrenAttribute] as! [AXUIElement]
+        switch elemChilds.count {
+        case 5:
+            // sole window
+            break
+        case 6:
+            // not sole window
+            break
+        default: preconditionFailure()
+        }
+    }
+
     var toolbars = Set<AXUIElement>()
     var containers = Set<AXUIElement>()
     var contents = Set<AXUIElement>()
-
     var seen = Set<AXUIElement>()
     func onActivateGhosttyWindow(elem: AXUIElement) async {
         var pid = pid_t()
@@ -402,20 +427,20 @@ actor WindConductor {
         var n = 0
         for i in stride(from: self.recent.count - 1, through: 0, by: -1) {
             var i_pid = pid_t()
-            try! ax(AXUIElementGetPid(self.winds[self.recent[i]], &i_pid))
+            try! ax(AXUIElementGetPid(self.tabs[self.recent[i]], &i_pid))
             if i_pid != pid { continue }
             if n != nthRecent {
                 n += 1
                 continue
             }
 
-            old = self.winds[self.recent[i]]
-            self.winds[self.recent[i]] = elem
+            old = self.tabs[self.recent[i]]
+            self.tabs[self.recent[i]] = elem
         }
 
         for i in 0..<self.order.count {
-            if self.winds[self.order[i]] == old {
-                self.winds[self.order[i]] = elem
+            if self.tabs[self.order[i]] == old {
+                self.tabs[self.order[i]] = elem
                 break
             }
         }
@@ -432,25 +457,19 @@ actor WindConductor {
                 print("- \(w) \(w["AXMain"] as Any)")
             }
 
-            /*
-            Strategy
-            --------
-            - store previous `AXMain` to track last window
-            - use count of `AXChildren` (5 vs 6) to determine if the new window is actually a new window
-            */
         }
     }
 
     func ini(wind: AXUIElement) -> Int {
-        if let i = self.winds.firstIndex(of: wind) { return i }
+        if let i = self.tabs.firstIndex(of: wind) { return i }
 
         if let i = self.free.popLast() {
             // assert(self.winds[i].isEmpty)
-            self.winds[i] = wind
+            self.tabs[i] = wind
             return i
         } else {
-            self.winds.append(wind)
-            return self.winds.count - 1
+            self.tabs.append(wind)
+            return self.tabs.count - 1
         }
     }
 
@@ -466,7 +485,7 @@ extension Array where Element: Equatable {
         self.append(newElement)
     }
 
-    mutating func uappend(_ newElement: Element) {
+    mutating func uppend(_ newElement: Element) {
         precondition(self.firstIndex(of: newElement) == self.lastIndex(of: newElement))
         if self.firstIndex(of: newElement) == nil {
             self.append(newElement)
