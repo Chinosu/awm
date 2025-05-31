@@ -1,7 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 
-func hotkeys(_ wc: WC) {
+func hotkeys(_ wc: WindConductor) {
     let ptr = Unmanaged.passRetained(wc)
     // ptr.release()
     let eventTap = CGEvent.tapCreate(
@@ -39,7 +39,7 @@ private func keyDispatch(
 
     // print("=> \(key) \(autorepeat) \(kind) \(alt)+\(cmd)")
 
-    let wc = Unmanaged<WC>.fromOpaque(userInfo!).takeUnretainedValue()
+    let wc = Unmanaged<WindConductor>.fromOpaque(userInfo!).takeUnretainedValue()
     switch (kind, key, autorepeat, (alt, cmd, shift)) {
     case (.keyDown, kVK_ANSI_1, false, (false, true, false)):
         Task { await wc.raiseAction(index: 0) }

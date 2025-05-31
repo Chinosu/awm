@@ -8,6 +8,6 @@ guard argv.count == 1 else {
 }
 
 Task {
-    hotkeys(await WC())
+    hotkeys(await WindConductor())
 }
 RunLoop.current.run()

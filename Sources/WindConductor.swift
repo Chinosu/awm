@@ -1,6 +1,6 @@
 import AppKit
 
-actor WC {
+actor WindConductor {
     var winds: [[AXUIElement]] = []
     var pids: [pid_t] = []
     var free: Set<Int> = []

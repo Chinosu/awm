@@ -1,6 +1,6 @@
 import AppKit
 
-extension WC {
+extension WindConductor {
     func iniWatchers() {
         for app in NSWorkspace.shared.runningApplications {
             if app.activationPolicy != .regular { continue }
@@ -41,7 +41,7 @@ extension WC {
         AXObserverCreate(
             app,
             { ob, elem, not, ptr in
-                let wc = Unmanaged<WC>.fromOpaque(ptr!).takeUnretainedValue()
+                let wc = Unmanaged<WindConductor>.fromOpaque(ptr!).takeUnretainedValue()
                 nonisolated(unsafe) let e = elem
                 Task { @Sendable in await wc.onTabActivate(e) }
             }, &observer)

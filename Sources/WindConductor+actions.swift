@@ -1,6 +1,6 @@
 import AppKit
 
-extension WC {
+extension WindConductor {
     func raiseAction(index: Int) async {
         await prune()
         guard canon.indices.contains(index) else { return }
